@@ -1,6 +1,6 @@
 // Small DOM helpers. Text from questions and from the worker is always set as text, never parsed as HTML, and no
 // style attribute is ever written (the page's Content Security Policy forbids inline styles).
-import { api, WorkerUnreachable } from "./api.js";
+import { api, servedByWorker, WorkerUnreachable } from "./api.js";
 
 export function applyTheme(theme) {
   if (theme === "light" || theme === "dark") {
@@ -146,8 +146,34 @@ export function hash(path, params) {
 export function blocks(question, list, tag) {
   const container = el(tag || "div", { class: "blocks" });
   const assets = Object.fromEntries((question.assets || []).map((asset) => [asset.id, asset]));
-  window.QBankRender.renderBlocks(list || [], container, { assets, assetUrl: (asset) => api.assetUrl(question.exam, asset) });
+  window.QBankRender.renderBlocks(list || [], container, { assets, assetUrl: (asset) => api.assetUrl(question.exam, asset), loadImage });
   return container;
+}
+
+const imageCache = new Map(); // worker image URL -> promise of a blob: URL; images never change, so one copy per visit
+const MAX_CACHED_IMAGES = 300;
+
+function loadImage(url, image) {
+  if (servedByWorker) {
+    image.src = url; // same origin as the worker: a plain image request
+    return;
+  }
+  let pending = imageCache.get(url);
+  if (!pending) {
+    pending = api.image(url).then((blob) => URL.createObjectURL(blob));
+    imageCache.set(url, pending);
+    pending.catch(() => imageCache.delete(url));
+    if (imageCache.size > MAX_CACHED_IMAGES) {
+      const [oldest, old] = imageCache.entries().next().value;
+      imageCache.delete(oldest);
+      old.then((objectUrl) => URL.revokeObjectURL(objectUrl), () => {});
+    }
+  }
+  pending.then((objectUrl) => {
+    image.src = objectUrl;
+  }, () => {
+    image.replaceWith(el("span", { class: "qb-missing", text: "[image not available]" }));
+  });
 }
 
 export function answerText(question, answer) {

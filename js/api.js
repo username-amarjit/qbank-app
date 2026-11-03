@@ -95,4 +95,18 @@ export const api = {
   settings: () => call("GET", "/api/settings").then((data) => data.settings),
   saveSettings: (values) => call("PUT", "/api/settings", values).then((data) => data.settings),
   assetUrl: (exam, asset) => `${WORKER}/assets/${encodeURIComponent(exam)}/${asset.path}`,
+  // Images through fetch too: from an HTTPS page this is the request Local Network Access expects for 127.0.0.1,
+  // and it is never mixed content. Images are named by SHA-256, so the browser cache can serve them for good.
+  image: async (url) => {
+    let response;
+    try {
+      response = await fetch(url, { mode: "cors", credentials: "omit", targetAddressSpace: "loopback" });
+    } catch (error) {
+      throw new WorkerUnreachable(`The QBank worker did not answer at ${WORKER}.`);
+    }
+    if (!response.ok) {
+      throw new WorkerError(response.status, "image", `The worker answered ${response.status} for an image.`);
+    }
+    return response.blob();
+  },
 };

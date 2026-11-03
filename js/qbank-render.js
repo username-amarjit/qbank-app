@@ -71,10 +71,14 @@
       return missing;
     }
     var image = document.createElement("img");
-    image.src = url;
     image.alt = (asset && asset.alt_text) || "";
-    image.loading = "lazy";
     image.className = "qb-image";
+    if (options.loadImage) {
+      options.loadImage(url, image); // the page fetches the image itself (for example over CORS) and sets src
+    } else {
+      image.loading = "lazy";
+      image.src = url;
+    }
     return image;
   }
 
