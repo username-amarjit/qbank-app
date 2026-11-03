@@ -5,7 +5,10 @@
 const PORT = 7331;
 const LOCAL_ORIGINS = [`http://127.0.0.1:${PORT}`, `http://localhost:${PORT}`];
 
-export const servedByWorker = LOCAL_ORIGINS.includes(location.origin);
+// The copy at http://127.0.0.1:<port>/app/ is served by the worker itself, whatever port it was given; it talks to
+// its own origin. Anywhere else (GitHub Pages) the worker is expected on the default port.
+export const servedByWorker = location.protocol === "http:" && ["127.0.0.1", "localhost"].includes(location.hostname) &&
+  location.pathname.startsWith("/app/");
 export const WORKER = servedByWorker ? location.origin : LOCAL_ORIGINS[0];
 export const LOCAL_APP = `${LOCAL_ORIGINS[0]}/app/`;
 
@@ -78,6 +81,8 @@ function query(params) {
 export const api = {
   health: () => call("GET", "/health"),
   exams: () => call("GET", "/api/exams").then((data) => data.exams),
+  examTopics: (exam) => call("GET", `/api/exams/${encodeURIComponent(exam)}/topics`),
+  editTopics: (id, change) => call("POST", `/api/questions/${encodeURIComponent(id)}/topics`, change),
   questions: (params) => call("GET", "/api/questions" + query(params)),
   search: (params) => call("GET", "/api/search" + query(params)),
   question: (id) => call("GET", `/api/questions/${encodeURIComponent(id)}`),

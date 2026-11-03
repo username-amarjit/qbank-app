@@ -1,6 +1,6 @@
 // Dashboard (CP32): progress per exam, recent answers, activity, and where to go next.
 import { api } from "../api.js";
-import { bar, el, emptyState, errorBanner, examName, hash, percent, questionLabel, when } from "../ui.js";
+import { bar, browseHref, el, emptyState, errorBanner, examName, hash, percent, questionLabel, when } from "../ui.js";
 
 function activity(days) {
   if (!days.length) {
@@ -32,9 +32,16 @@ export async function renderDashboard(view, { app }) {
   const examGrid = el("div", { class: "grid" });
   const recent = el("section", { class: "card" }, el("h2", { text: "Recent answers" }));
   const overall = el("section", { class: "card" }, el("h2", { text: "Last 30 days" }));
-  view.append(examGrid, el("div", { class: "grid two" }, overall, recent));
+  const warnings = el("div");
+  view.append(warnings, examGrid, el("div", { class: "grid two" }, overall, recent));
   try {
-    const [stats, history, ...perExam] = await Promise.all([api.analytics(), api.history({ limit: 8 }), ...app.exams.map((exam) => api.analytics(exam.exam))]);
+    const [stats, history, health, ...perExam] = await Promise.all([api.analytics(), api.history({ limit: 8 }), api.health(),
+      ...app.exams.map((exam) => api.analytics(exam.exam))]);
+    if (health.problems && health.problems.length) {
+      // backup or data warnings from the worker: questions keep working, but the user should know (CP39, CP40)
+      warnings.appendChild(el("div", { class: "banner warn", role: "status" },
+        el("strong", { text: "Worker warnings" }), el("ul", {}, health.problems.map((problem) => el("li", { text: problem })))));
+    }
     app.exams.forEach((exam, i) => {
       const done = perExam[i].questions_attempted;
       examGrid.appendChild(el("section", { class: "card exam-card" },
@@ -43,6 +50,7 @@ export async function renderDashboard(view, { app }) {
         bar(done / exam.question_count),
         el("div", { class: "actions" },
           el("a", { class: "btn btn-primary", href: `#/practice/${encodeURIComponent(exam.exam)}` }, "Practice"),
+          el("a", { class: "btn", href: browseHref(exam.exam, "topics") }, "Topic wise"),
           el("a", { class: "btn", href: hash("run", { exam: exam.exam, random: 10 }) }, "10 random"))));
     });
     overall.append(

@@ -1,17 +1,21 @@
 // Search (CP32): full-text search with filters; results open in the player, which then steps through them.
 import { api } from "../api.js";
-import { el, emptyState, errorBanner, hash, loading, pager, questionList, TYPE_NAMES } from "../ui.js";
+import { el, emptyState, errorBanner, hash, loading, pager, questionList, replace, TYPE_NAMES } from "../ui.js";
 
 const PER_PAGE = 20;
 
 export async function renderSearch(view, { params, app }) {
-  const values = Object.fromEntries(["q", "exam", "subject", "year", "type"].map((key) => [key, params.get(key) || ""]));
+  const values = Object.fromEntries(["q", "exam", "subject", "topic", "year", "type"].map((key) => [key, params.get(key) || ""]));
   const page = Math.max(1, Number(params.get("page")) || 1);
   const exam = app.exams.find((entry) => entry.exam === values.exam);
   const subjects = exam ? Object.keys(exam.subjects || {}) : [...new Set(app.exams.flatMap((entry) => Object.keys(entry.subjects || {})))].sort();
   const years = exam ? Object.keys(exam.years || {}) : [...new Set(app.exams.flatMap((entry) => Object.keys(entry.years || {})))].sort();
   const types = [...new Set(app.exams.flatMap((entry) => Object.keys(entry.question_types || {})))];
 
+  // the topic list of the chosen exam (CP40B); topics only make sense within one exam
+  const topicSelect = el("select", { name: "topic", disabled: !exam },
+    el("option", { value: "", text: exam ? "Any topic" : "Choose an exam first" }),
+    values.topic ? el("option", { value: values.topic, selected: true, text: values.topic }) : null);
   const form = el("form", { class: "search-form", role: "search" },
     el("label", { class: "field grow" }, el("span", { text: "Words to find" }),
       el("input", { type: "search", name: "q", value: values.q, placeholder: "for example: deadlock, eigenvalue, B+ tree", autocomplete: "off" })),
@@ -21,6 +25,7 @@ export async function renderSearch(view, { params, app }) {
     el("label", { class: "field" }, el("span", { text: "Subject" }),
       el("select", { name: "subject" }, el("option", { value: "", text: "Any subject" }),
         subjects.filter((subject) => subject !== "(none)").map((subject) => el("option", { value: subject, selected: subject === values.subject, text: subject })))),
+    el("label", { class: "field" }, el("span", { text: "Topic" }), topicSelect),
     el("label", { class: "field" }, el("span", { text: "Year" }),
       el("select", { name: "year" }, el("option", { value: "", text: "Any year" }),
         years.slice().reverse().map((year) => el("option", { value: year, selected: year === values.year, text: year })))),
@@ -33,7 +38,18 @@ export async function renderSearch(view, { params, app }) {
     const data = new FormData(form);
     location.hash = hash("search", Object.fromEntries([...data.entries()].map(([key, value]) => [key, String(value).trim()])));
   });
-  form.elements.exam.addEventListener("change", () => form.requestSubmit());
+  form.elements.exam.addEventListener("change", () => {
+    topicSelect.value = "";
+    form.requestSubmit();
+  });
+  if (exam) {
+    api.examTopics(exam.exam).then((data) => {
+      replace(topicSelect, el("option", { value: "", text: "Any topic" }),
+        data.subjects.map((subject) => el("optgroup", { label: subject.subject },
+          subject.topics.filter((topic) => topic.count || topic.id === values.topic).map((topic) =>
+            el("option", { value: topic.id, selected: topic.id === values.topic, text: `${topic.name} (${topic.count})` })))));
+    }, () => {});
+  }
 
   const results = el("div", { class: "results" });
   view.append(el("h1", { text: "Search" }), el("section", { class: "card" }, form), results);
@@ -44,9 +60,9 @@ export async function renderSearch(view, { params, app }) {
   }
   results.appendChild(loading("Searching…"));
   try {
-    const filters = { q: values.q, exam: values.exam, subject: values.subject, year: values.year, type: values.type };
+    const filters = { q: values.q, exam: values.exam, subject: values.subject, topic: exam ? values.topic : "", year: values.year, type: values.type };
     const found = await (values.q ? api.search : api.questions)({ ...filters, page, per_page: PER_PAGE });
-    results.replaceChildren(
+    replace(results,
       el("p", { class: "muted", role: "status", text: `${found.total} question${found.total === 1 ? "" : "s"} found.` }),
       found.total ? el("a", { class: "btn", href: hash("run", filters) }, "Practise all of them") : null,
       questionList(found.items, (item) => hash("run", { ...filters, at: item.id })),

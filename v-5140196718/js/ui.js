@@ -61,6 +61,12 @@ export function clear(node) {
   return node;
 }
 
+// Like node.replaceChildren(...), but skips null, undefined and false (the native call would show them as text).
+export function replace(node, ...children) {
+  node.replaceChildren();
+  return append(node, children);
+}
+
 export function link(href, text, attrs) {
   return el("a", { href, ...(attrs || {}) }, text);
 }
@@ -78,6 +84,30 @@ export function bar(fraction, kind) {
 
 export function examName(exam) {
   return String(exam || "").split("-").map((part) => part.toUpperCase()).join(" ");
+}
+
+// An exam's papers by year, newest last: year -> [{paper, label ("Set 2" or "Paper"), count}].
+export function papersByYear(exam) {
+  const papers = Object.entries(exam.paper_counts || {}).length
+    ? Object.entries(exam.paper_counts)
+    : (exam.papers || []).map((paper) => [paper, undefined]);
+  const byYear = new Map();
+  papers.forEach(([paper, count]) => {
+    const year = (paper.match(/\d{4}/) || ["Other"])[0];
+    const rest = paper.replace(/^.*?\d{4}\s*/, "").trim();
+    if (!byYear.has(year)) {
+      byYear.set(year, []);
+    }
+    byYear.get(year).push({ paper, label: rest ? rest.replace(/^SET[-\s]*(\d+)$/i, "Set $1") : "Paper", count });
+  });
+  return byYear;
+}
+
+// The exam menu's pages (CP40B): #/exam/<exam>/topics, /subjects and /years.
+export const BROWSE_VIEWS = [["topics", "Topic wise"], ["subjects", "Subject wise"], ["years", "Year wise"]];
+
+export function browseHref(exam, kind, params) {
+  return hash(`exam/${encodeURIComponent(exam)}/${kind}`, params);
 }
 
 export const TYPE_LABELS = { mcq_single: "MCQ", mcq_multiple: "MSQ", numerical: "NAT" };

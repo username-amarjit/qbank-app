@@ -1,6 +1,6 @@
 // History (CP32): every answer, newest first; can be limited to one practice session.
 import { api } from "../api.js";
-import { duration, el, emptyState, errorBanner, hash, loading, questionLabel, tabs, TYPE_LABELS, when } from "../ui.js";
+import { append, duration, el, emptyState, errorBanner, hash, loading, questionLabel, tabs, TYPE_LABELS, when } from "../ui.js";
 
 const PAGE = 50;
 
@@ -9,8 +9,8 @@ export async function renderHistory(view, { params, app }) {
   const table = el("tbody");
   const more = el("button", { class: "btn", type: "button", hidden: true }, "Show more");
   const body = el("div", {}, loading());
-  view.append(el("h1", { text: "History" }), tabs([["#/history", "Answers", "history"], ["#/sessions", "Practice sessions", "sessions"]], "history"),
-    session ? el("p", { class: "muted" }, `Answers from practice session ${session}. `, el("a", { href: "#/history" }, "Show all")) : null, body);
+  append(view, [el("h1", { text: "History" }), tabs([["#/history", "Answers", "history"], ["#/sessions", "Practice sessions", "sessions"]], "history"),
+    session ? el("p", { class: "muted" }, `Answers from practice session ${session}. `, el("a", { href: "#/history" }, "Show all")) : null, body]);
   let offset = 0;
 
   async function load() {

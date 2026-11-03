@@ -1,6 +1,6 @@
 // Saved questions (CP32): bookmarks, favourites and notes.
 import { api } from "../api.js";
-import { el, emptyState, errorBanner, hash, loading, pager, questionLabel, questionList, tabs, when } from "../ui.js";
+import { el, emptyState, errorBanner, hash, loading, pager, questionLabel, questionList, replace, tabs, when } from "../ui.js";
 
 const LISTS = [["bookmarks", "Bookmarks"], ["favorites", "Favourites"], ["notes", "Notes"]];
 
@@ -24,7 +24,7 @@ export async function renderSaved(view, { args, params, app }) {
       return;
     }
     const found = await api.questions({ list: kind, page, per_page: 50 });
-    body.replaceChildren(
+    replace(body,
       found.total ? el("div", { class: "actions" },
         el("span", { class: "muted", text: `${found.total} question${found.total === 1 ? "" : "s"}` }),
         el("a", { class: "btn btn-primary", href: hash("run", { list: kind }) }, "Practise these")) : null,
