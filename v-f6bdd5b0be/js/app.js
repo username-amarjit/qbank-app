@@ -1,9 +1,11 @@
 // QBank web app: connects to the local worker, then shows the page named in the address (#/practice, #/search, ...).
 import { api, LOCAL_APP, loopbackPermission, servedByWorker, WORKER, WorkerUnreachable } from "./api.js";
-import { applyTheme, clear, el, errorBanner, external } from "./ui.js";
+import { applyTheme, BROWSE_VIEWS, browseHref, clear, el, errorBanner, examName, external, hash, replace } from "./ui.js";
 import { renderAnalytics } from "./views/analytics.js";
+import { renderBrowse } from "./views/browse.js";
 import { renderDashboard } from "./views/dashboard.js";
 import { renderHistory } from "./views/history.js";
+import { renderNotebook } from "./views/notebook.js";
 import { renderPractice } from "./views/practice.js";
 import { renderRun } from "./views/run.js";
 import { renderSaved } from "./views/saved.js";
@@ -14,9 +16,11 @@ import { renderSettings } from "./views/settings.js";
 const ROUTES = {
   "": renderDashboard,
   practice: renderPractice,
+  exam: renderBrowse,
   run: renderRun,
   search: renderSearch,
   saved: renderSaved,
+  notebook: renderNotebook,
   history: renderHistory,
   sessions: renderSessions,
   analytics: renderAnalytics,
@@ -26,6 +30,7 @@ const ROUTES = {
 const app = { connected: false, health: null, exams: [], settings: {}, reconnect: () => connect() };
 const view = document.getElementById("view");
 const status = document.getElementById("conn");
+const menus = document.getElementById("exam-menus");
 let cleanup = null;
 let routeToken = 0;
 
@@ -33,6 +38,54 @@ function setStatus(kind, text) {
   status.className = `conn ${kind}`;
   status.textContent = text;
 }
+
+// The exam menus in the top bar (CP40B): GATE CSE ▾ -> Topic wise, Subject wise, Year wise, ... (a disclosure menu:
+// a button that shows a list of links; Escape or a click elsewhere closes it).
+function closeMenus(except) {
+  menus.querySelectorAll(".exam-menu").forEach((menu) => {
+    if (menu !== except) {
+      menu.querySelector(".menu-button").setAttribute("aria-expanded", "false");
+      menu.querySelector(".menu").hidden = true;
+    }
+  });
+}
+
+function buildMenus() {
+  replace(menus, app.exams.map((exam) => {
+    const list = el("ul", { class: "menu", id: `menu-${exam.exam}`, hidden: true },
+      BROWSE_VIEWS.map(([key, text]) => el("li", {}, el("a", { href: browseHref(exam.exam, key) }, text))),
+      el("li", { class: "sep" }, el("a", { href: `#/practice/${encodeURIComponent(exam.exam)}` }, "Practice home")),
+      el("li", {}, el("a", { href: hash("run", { exam: exam.exam, random: 10 }) }, "10 random questions")));
+    const button = el("button", { type: "button", class: "menu-button", "aria-expanded": "false", "aria-controls": list.id, dataset: { exam: exam.exam } },
+      examName(exam.exam), el("span", { class: "caret", "aria-hidden": "true", text: "▾" }));
+    const menu = el("div", { class: "exam-menu" }, button, list);
+    button.addEventListener("click", () => {
+      const open = button.getAttribute("aria-expanded") !== "true";
+      closeMenus(menu);
+      button.setAttribute("aria-expanded", String(open));
+      list.hidden = !open;
+    });
+    list.addEventListener("click", (event) => {
+      if (event.target.closest("a")) {
+        closeMenus();
+      }
+    });
+    return menu;
+  }));
+}
+
+document.addEventListener("click", (event) => {
+  if (!event.target.closest(".exam-menu")) {
+    closeMenus();
+  }
+});
+document.addEventListener("keydown", (event) => {
+  const open = menus.querySelector('.menu-button[aria-expanded="true"]');
+  if (event.key === "Escape" && open) {
+    closeMenus();
+    open.focus();
+  }
+});
 
 function parseHash() {
   const raw = location.hash.replace(/^#\/?/, "");
@@ -42,7 +95,7 @@ function parseHash() {
   return { name: parts[0] || "", args: parts.slice(1), params: new URLSearchParams(cut < 0 ? "" : raw.slice(cut + 1)) };
 }
 
-function markNav(name) {
+function markNav(name, args) {
   document.querySelectorAll(".nav a").forEach((anchor) => {
     const active = anchor.dataset.route === name || (name === "run" && anchor.dataset.route === "practice") ||
       (name === "sessions" && anchor.dataset.route === "history");
@@ -52,6 +105,9 @@ function markNav(name) {
     } else {
       anchor.removeAttribute("aria-current");
     }
+  });
+  menus.querySelectorAll(".menu-button").forEach((button) => {
+    button.classList.toggle("active", name === "exam" && (args || [])[0] === button.dataset.exam);
   });
 }
 
@@ -76,7 +132,8 @@ async function route() {
     }
     cleanup = null;
   }
-  markNav(name);
+  markNav(name, args);
+  closeMenus();
   // Each page draws into its own element: a slow page that finishes after the user moved on draws into a detached
   // element (its code checks page.isConnected) instead of over the new page.
   const page = el("div", { class: "page" });
@@ -174,6 +231,7 @@ async function connect() {
   app.connected = true;
   remember("qbank.connected", "1");
   applyTheme(app.settings.theme);
+  buildMenus();
   setStatus("ok", `Worker ${app.health.worker_version}`);
   status.title = `Connected to ${WORKER}`;
   await route();

@@ -1,5 +1,5 @@
 // Practice chooser (CP31): pick an exam, then a paper, a subject, a year, a question type, or random questions.
-import { el, emptyState, examName, hash, TYPE_LABELS, TYPE_NAMES } from "../ui.js";
+import { browseHref, el, emptyState, examName, hash, papersByYear, TYPE_LABELS, TYPE_NAMES } from "../ui.js";
 
 function examCard(exam) {
   const years = Object.keys(exam.years || {});
@@ -29,18 +29,8 @@ export function renderPractice(view, { args, app }) {
     return;
   }
   const base = { exam: exam.exam };
-  const papers = Object.entries(exam.paper_counts || {}).length
-    ? Object.entries(exam.paper_counts)
-    : (exam.papers || []).map((paper) => [paper, undefined]);
-  const byYear = new Map();
-  papers.forEach(([paper, count]) => {
-    const year = (paper.match(/\d{4}/) || ["Other"])[0];
-    const rest = paper.replace(/^.*?\d{4}\s*/, "").trim();
-    if (!byYear.has(year)) {
-      byYear.set(year, []);
-    }
-    byYear.get(year).push([hash("run", { ...base, paper }), rest ? rest.replace(/^SET[-\s]*(\d+)$/i, "Set $1") : "Paper", count]);
-  });
+  const byYear = new Map([...papersByYear(exam).entries()].map(([year, papers]) =>
+    [year, papers.map(({ paper, label, count }) => [hash("run", { ...base, paper }), label, count])]));
   const subjects = Object.entries(exam.subjects || {}).filter(([subject]) => subject !== "(none)");
   const randomForm = el("form", { class: "inline-form" },
     el("label", { class: "field" }, el("span", { text: "Questions" }),
@@ -62,6 +52,11 @@ export function renderPractice(view, { args, app }) {
       el("div", {}, app.exams.length > 1 ? el("a", { href: "#/practice", class: "back" }, "← All exams") : null, el("h1", { text: examName(exam.exam) })),
       el("p", { class: "muted", text: `${exam.question_count} questions, dataset version ${exam.dataset_version}` })),
     section("Random practice", "A fresh mix each time.", randomForm),
+    section("Browse", exam.classified ? `Topic wise sorts ${exam.classified} questions into fine topics, for example Stacks, Eigenvalues or TCP.` : null,
+      el("div", { class: "actions" },
+        el("a", { class: "btn btn-primary", href: browseHref(exam.exam, "topics") }, "Topic wise"),
+        el("a", { class: "btn", href: browseHref(exam.exam, "subjects") }, "Subject wise"),
+        el("a", { class: "btn", href: browseHref(exam.exam, "years") }, "Year wise"))),
     section("Previous year papers", "Every question of a paper, in order.",
       el("div", { class: "years" }, [...byYear.entries()].reverse().map(([year, entries]) =>
         el("div", { class: "year-row" }, el("span", { class: "year", text: year }), linkGrid(entries))))),
