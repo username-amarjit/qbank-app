@@ -1,10 +1,10 @@
 // Practice chooser (CP31): pick an exam, then a paper, a subject, a year, a question type, or random questions.
-import { browseHref, el, emptyState, examName, hash, papersByYear, TYPE_LABELS, TYPE_NAMES } from "../ui.js";
+import { browseHref, el, emptyState, examLabel, hash, papersByYear, practiceHref, TYPE_LABELS, TYPE_NAMES } from "../ui.js";
 
 function examCard(exam) {
   const years = Object.keys(exam.years || {});
-  return el("a", { class: "card exam-card", href: `#/practice/${encodeURIComponent(exam.exam)}` },
-    el("h2", { text: examName(exam.exam) }),
+  return el("a", { class: "card exam-card", href: practiceHref(exam.exam) },
+    el("h2", { text: examLabel(exam.exam) }),
     el("p", { class: "muted", text: `${exam.question_count} questions · ${years[0]}–${years[years.length - 1]}` }),
     el("p", { class: "muted small", text: `Dataset version ${exam.dataset_version}` }));
 }
@@ -49,7 +49,7 @@ export function renderPractice(view, { args, app }) {
 
   view.append(
     el("div", { class: "page-head" },
-      el("div", {}, app.exams.length > 1 ? el("a", { href: "#/practice", class: "back" }, "← All exams") : null, el("h1", { text: examName(exam.exam) })),
+      el("div", {}, app.exams.length > 1 ? el("a", { href: "#/practice", class: "back" }, "← All exams") : null, el("h1", { text: examLabel(exam.exam) })),
       el("p", { class: "muted", text: `${exam.question_count} questions, dataset version ${exam.dataset_version}` })),
     section("Random practice", "A fresh mix each time.", randomForm),
     section("Browse", exam.classified ? `Topic wise sorts ${exam.classified} questions into fine topics, for example Stacks, Eigenvalues or TCP.` : null,

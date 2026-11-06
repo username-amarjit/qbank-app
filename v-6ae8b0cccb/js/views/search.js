@@ -1,6 +1,6 @@
 // Search (CP32): full-text search with filters; results open in the player, which then steps through them.
 import { api } from "../api.js";
-import { el, emptyState, errorBanner, hash, loading, pager, questionList, replace, TYPE_NAMES } from "../ui.js";
+import { el, emptyState, errorBanner, examLabel, hash, loading, pager, questionList, replace, TYPE_NAMES } from "../ui.js";
 
 const PER_PAGE = 20;
 
@@ -21,7 +21,7 @@ export async function renderSearch(view, { params, app }) {
       el("input", { type: "search", name: "q", value: values.q, placeholder: "for example: deadlock, eigenvalue, B+ tree", autocomplete: "off" })),
     el("label", { class: "field" }, el("span", { text: "Exam" }),
       el("select", { name: "exam" }, el("option", { value: "", text: "All exams" }),
-        app.exams.map((entry) => el("option", { value: entry.exam, selected: entry.exam === values.exam, text: entry.exam.toUpperCase().replace("-", " ") })))),
+        app.exams.map((entry) => el("option", { value: entry.exam, selected: entry.exam === values.exam, text: examLabel(entry.exam) })))),
     el("label", { class: "field" }, el("span", { text: "Subject" }),
       el("select", { name: "subject" }, el("option", { value: "", text: "Any subject" }),
         subjects.filter((subject) => subject !== "(none)").map((subject) => el("option", { value: subject, selected: subject === values.subject, text: subject })))),

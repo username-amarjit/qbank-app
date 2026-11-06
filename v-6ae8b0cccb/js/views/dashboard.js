@@ -1,6 +1,6 @@
 // Dashboard (CP32): progress per exam, recent answers, activity, and where to go next.
 import { api } from "../api.js";
-import { bar, browseHref, el, emptyState, errorBanner, examName, hash, percent, questionLabel, when } from "../ui.js";
+import { bar, browseHref, el, emptyState, errorBanner, examLabel, hash, percent, practiceHref, questionLabel, when } from "../ui.js";
 
 function activity(days) {
   if (!days.length) {
@@ -45,11 +45,11 @@ export async function renderDashboard(view, { app }) {
     app.exams.forEach((exam, i) => {
       const done = perExam[i].questions_attempted;
       examGrid.appendChild(el("section", { class: "card exam-card" },
-        el("h2", {}, el("a", { href: `#/practice/${encodeURIComponent(exam.exam)}`, text: examName(exam.exam) })),
+        el("h2", {}, el("a", { href: practiceHref(exam.exam), text: examLabel(exam.exam) })),
         el("p", { class: "muted", text: `${done} of ${exam.question_count} questions answered · accuracy ${percent(perExam[i].accuracy)}` }),
         bar(done / exam.question_count),
         el("div", { class: "actions" },
-          el("a", { class: "btn btn-primary", href: `#/practice/${encodeURIComponent(exam.exam)}` }, "Practice"),
+          el("a", { class: "btn btn-primary", href: practiceHref(exam.exam) }, "Practice"),
           el("a", { class: "btn", href: browseHref(exam.exam, "topics") }, "Topic wise"),
           el("a", { class: "btn", href: hash("run", { exam: exam.exam, random: 10 }) }, "10 random"))));
     });
@@ -60,7 +60,9 @@ export async function renderDashboard(view, { app }) {
         el("div", { class: "tile" }, el("span", { class: "tile-value", text: percent(stats.accuracy) }), el("span", { text: "accuracy" }))),
       activity(stats.last_30_days),
       el("p", {}, el("a", { href: "#/analytics" }, "Analytics"), " · ", el("a", { href: "#/analytics/weak" }, "Weak topics"), " · ",
-        el("a", { href: "#/analytics/progress" }, "Exam progress")));
+        el("a", { href: "#/analytics/progress" }, "Exam progress"), " · ",
+        el("a", { href: hash("notebook", { open: (stats.mistake_reasons || {}).open ? "1" : "" }) },
+          (stats.mistake_reasons || {}).open ? `Error notebook (${stats.mistake_reasons.open} open)` : "Error notebook")));
     if (!history.length) {
       recent.appendChild(emptyState("Nothing answered yet. Pick an exam above to start."));
     } else {

@@ -1,10 +1,14 @@
 // QBank web app: connects to the local worker, then shows the page named in the address (#/practice, #/search, ...).
 import { api, LOCAL_APP, loopbackPermission, servedByWorker, WORKER, WorkerUnreachable } from "./api.js";
-import { applyTheme, BROWSE_VIEWS, browseHref, clear, el, errorBanner, examName, external, hash, replace } from "./ui.js";
+import {
+  applyTheme, BROWSE_VIEWS, browseHref, clear, el, errorBanner, examFromAddress, examLabel, external, hash, practiceHref, readAddress,
+  rememberIds, replace, setDisplay,
+} from "./ui.js";
 import { renderAnalytics } from "./views/analytics.js";
 import { renderBrowse } from "./views/browse.js";
 import { renderDashboard } from "./views/dashboard.js";
 import { renderHistory } from "./views/history.js";
+import { renderNotebook } from "./views/notebook.js";
 import { renderPractice } from "./views/practice.js";
 import { renderRun } from "./views/run.js";
 import { renderSaved } from "./views/saved.js";
@@ -19,6 +23,7 @@ const ROUTES = {
   run: renderRun,
   search: renderSearch,
   saved: renderSaved,
+  notebook: renderNotebook,
   history: renderHistory,
   sessions: renderSessions,
   analytics: renderAnalytics,
@@ -37,7 +42,7 @@ function setStatus(kind, text) {
   status.textContent = text;
 }
 
-// The exam menus in the top bar (CP40B): GATE CSE ▾ -> Topic wise, Subject wise, Year wise, ... (a disclosure menu:
+// The exam menus in the top bar (CP40B): <exam> ▾ -> Topic wise, Subject wise, Year wise, ... (a disclosure menu:
 // a button that shows a list of links; Escape or a click elsewhere closes it).
 function closeMenus(except) {
   menus.querySelectorAll(".exam-menu").forEach((menu) => {
@@ -49,13 +54,13 @@ function closeMenus(except) {
 }
 
 function buildMenus() {
-  replace(menus, app.exams.map((exam) => {
-    const list = el("ul", { class: "menu", id: `menu-${exam.exam}`, hidden: true },
+  replace(menus, app.exams.map((exam, index) => {
+    const list = el("ul", { class: "menu", id: `menu-${index}`, hidden: true },
       BROWSE_VIEWS.map(([key, text]) => el("li", {}, el("a", { href: browseHref(exam.exam, key) }, text))),
-      el("li", { class: "sep" }, el("a", { href: `#/practice/${encodeURIComponent(exam.exam)}` }, "Practice home")),
+      el("li", { class: "sep" }, el("a", { href: practiceHref(exam.exam) }, "Practice home")),
       el("li", {}, el("a", { href: hash("run", { exam: exam.exam, random: 10 }) }, "10 random questions")));
-    const button = el("button", { type: "button", class: "menu-button", "aria-expanded": "false", "aria-controls": list.id, dataset: { exam: exam.exam } },
-      examName(exam.exam), el("span", { class: "caret", "aria-hidden": "true", text: "▾" }));
+    const button = el("button", { type: "button", class: "menu-button", "aria-expanded": "false", "aria-controls": list.id, dataset: { index: String(index) } },
+      examLabel(exam.exam), el("span", { class: "caret", "aria-hidden": "true", text: "▾" }));
     const menu = el("div", { class: "exam-menu" }, button, list);
     button.addEventListener("click", () => {
       const open = button.getAttribute("aria-expanded") !== "true";
@@ -85,12 +90,28 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-function parseHash() {
+// The page and its arguments from the address, in their real form: exam codes, paper codes and short question ids
+// (incognito addresses) are turned back into exam ids, paper names and full question ids.
+async function parseHash() {
   const raw = location.hash.replace(/^#\/?/, "");
   const cut = raw.indexOf("?");
   const path = cut < 0 ? raw : raw.slice(0, cut);
   const parts = path.split("/").filter(Boolean).map((part) => decodeURIComponent(part));
-  return { name: parts[0] || "", args: parts.slice(1), params: new URLSearchParams(cut < 0 ? "" : raw.slice(cut + 1)) };
+  const name = parts[0] || "";
+  const args = parts.slice(1);
+  if ((name === "practice" || name === "exam") && args.length) {
+    args[0] = examFromAddress(args[0]);
+  }
+  let { params, unknown } = readAddress(new URLSearchParams(cut < 0 ? "" : raw.slice(cut + 1)));
+  if (unknown.length) {
+    try {
+      rememberIds(await api.resolveIds(unknown.slice(0, 500)));
+    } catch (error) {
+      // an unknown id stays as it is; the page then says it cannot find that question
+    }
+    ({ params } = readAddress(new URLSearchParams(cut < 0 ? "" : raw.slice(cut + 1))));
+  }
+  return { name, args, params };
 }
 
 function markNav(name, args) {
@@ -105,7 +126,8 @@ function markNav(name, args) {
     }
   });
   menus.querySelectorAll(".menu-button").forEach((button) => {
-    button.classList.toggle("active", name === "exam" && (args || [])[0] === button.dataset.exam);
+    const exam = (app.exams[Number(button.dataset.index)] || {}).exam;
+    button.classList.toggle("active", name === "exam" && (args || [])[0] === exam);
   });
 }
 
@@ -120,8 +142,11 @@ async function route() {
   if (!app.connected) {
     return;
   }
-  const { name, args, params } = parseHash();
   const token = ++routeToken;
+  const { name, args, params } = await parseHash();
+  if (token !== routeToken) {
+    return; // the address changed again while a short id was being looked up
+  }
   if (cleanup) {
     try {
       cleanup();
@@ -213,7 +238,11 @@ async function connect() {
   setStatus("busy", "Connecting…");
   try {
     app.health = await api.health();
-    [app.exams, app.settings] = await Promise.all([api.exams(), api.settings()]);
+    let display;
+    [app.exams, app.settings, display] = await Promise.all([api.exams(), api.settings(),
+      api.display().catch((error) => (error instanceof WorkerUnreachable ? Promise.reject(error) : null))]);
+    // a worker older than the incognito display has no /api/display: names are then shown as they are
+    setDisplay(display, app.exams);
   } catch (error) {
     app.connected = false;
     if (error instanceof WorkerUnreachable) {

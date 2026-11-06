@@ -1,6 +1,6 @@
 // Settings (CP32): stored by the worker with your progress, so they follow your data, not the browser.
 import { api, WORKER } from "../api.js";
-import { applyTheme, el, errorBanner, examName, when } from "../ui.js";
+import { applyTheme, el, errorBanner, examLabel, when } from "../ui.js";
 
 const SHORTCUTS = [
   ["1–9 or A–H", "choose an option"],
@@ -19,7 +19,7 @@ export function renderSettings(view, { app }) {
     el("fieldset", {}, el("legend", { text: "Practice" }),
       app.exams.length > 1 ? el("label", { class: "field" }, el("span", { text: "Exam to open first" }),
         el("select", { name: "default_exam" }, el("option", { value: "", text: "Ask each time" }),
-          app.exams.map((exam) => el("option", { value: exam.exam, text: examName(exam.exam), selected: exam.exam === current.default_exam })))) : null,
+          app.exams.map((exam) => el("option", { value: exam.exam, text: examLabel(exam.exam), selected: exam.exam === current.default_exam })))) : null,
       el("label", { class: "check" }, el("input", { type: "checkbox", name: "show_timer", checked: current.show_timer !== false }), "Show the time spent on each question"),
       el("label", { class: "check" }, el("input", { type: "checkbox", name: "shortcuts", checked: current.shortcuts !== false }), "Keyboard shortcuts")),
     el("div", { class: "actions" }, el("button", { class: "btn btn-primary", type: "submit" }, "Save"), status));
@@ -52,7 +52,7 @@ export function renderSettings(view, { app }) {
         el("dt", { text: "Address" }), el("dd", { text: WORKER }),
         el("dt", { text: "Version" }), el("dd", { text: `worker ${health.worker_version || "–"}, crawler ${health.crawler_version || "–"}` }),
         el("dt", { text: "Question index" }), el("dd", { text: `built ${when(index.built_at)}` }),
-        el("dt", { text: "Questions" }), el("dd", { text: Object.entries(index.questions || {}).map(([exam, count]) => `${examName(exam)}: ${count}`).join(", ") || "–" }),
+        el("dt", { text: "Questions" }), el("dd", { text: Object.entries(index.questions || {}).map(([exam, count]) => `${examLabel(exam)}: ${count}`).join(", ") || "–" }),
         el("dt", { text: "Datasets" }), el("dd", { text: app.exams.map((exam) => `${exam.dataset_id}`).join(", ") || "–" })),
       el("p", { class: "muted", text: "Questions, answers, notes and settings stay on this computer, in the worker. This page stores only the colour theme and whether it has connected before." })));
 }

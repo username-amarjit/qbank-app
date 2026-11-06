@@ -44,9 +44,28 @@ function topicGroups(stats, exam) {
     [`${exam ? "" : `${examName(entry.exam)} · `}${entry.subject} › ${entry.name}`, entry]));
 }
 
+function mistakeReasons(summary, exam) {
+  if (!summary || !summary.entries) {
+    return null;
+  }
+  const most = Math.max(1, ...summary.overall.map((row) => row.count));
+  const link = (extra) => hash("notebook", { exam, ...extra });
+  return el("section", { class: "card" }, el("h2", { text: "Why answers went wrong" }),
+    el("p", { class: "muted", text: `From your error notebook: ${summary.entries} entr${summary.entries === 1 ? "y" : "ies"}, ${summary.open} not resolved yet.` }),
+    summary.overall.length ? el("ul", { class: "reason-bars" }, summary.overall.map((row) => el("li", {},
+      el("a", { href: link({ reason: row.reason }), text: row.label }), bar(row.count / most), el("span", { class: "count", text: String(row.count) })))) : null,
+    Object.keys(summary.by_subject).length ? el("div", { class: "table-wrap" }, el("table", { class: "data" },
+      el("thead", {}, el("tr", {}, ["Subject", "Most frequent reasons"].map((name) => el("th", { scope: "col", text: name })))),
+      el("tbody", {}, Object.entries(summary.by_subject).map(([subject, rows]) => el("tr", {},
+        el("th", { scope: "row" }, subject === "(none)" ? subject : el("a", { href: link({ subject }) }, subject)),
+        el("td", { text: rows.slice(0, 3).map((row) => `${row.label} (${row.count})`).join(", ") })))))) : null,
+    el("p", {}, el("a", { href: link({}) }, "Open the error notebook")));
+}
+
 function overview(body, stats, exam) {
   if (!stats.attempts) {
     body.appendChild(emptyState("No answers yet. Practise some questions and your results appear here.", el("a", { class: "btn btn-primary", href: "#/practice" }, "Practice")));
+    append(body, [mistakeReasons(stats.mistake_reasons, exam)]);
     return;
   }
   const practice = (field) => (value) => hash("run", { exam, [field]: value });
@@ -59,7 +78,8 @@ function overview(body, stats, exam) {
     groupTable("By subject", stats.by_subject, (key) => key, exam ? practice("subject") : null),
     groupTable("By topic", topicGroups(stats, exam), (key) => key, (key, entry) => topicHref(entry)),
     groupTable("By year", stats.by_year, (key) => key, exam ? practice("year") : null),
-    groupTable("By question type", stats.by_question_type, (key) => TYPE_NAMES[key] || key, exam ? practice("type") : null)]);
+    groupTable("By question type", stats.by_question_type, (key) => TYPE_NAMES[key] || key, exam ? practice("type") : null),
+    mistakeReasons(stats.mistake_reasons, exam)]);
 }
 
 function weakTopics(body, stats, exam) {

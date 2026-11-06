@@ -2,9 +2,10 @@
 // favourites and notes. It plays any list: a paper, a subject, a year, a search, a saved list, or random questions.
 import { api } from "../api.js";
 import {
-  answerText, blocks, BROWSE_VIEWS, browseHref, clock, el, emptyState, errorBanner, examName, external, hash, loading, marksText, percent,
-  replace, TYPE_LABELS, TYPE_NAMES,
+  answerText, blocks, BROWSE_VIEWS, browseHref, clock, el, emptyState, errorBanner, examLabel, examName, external, eyeIcon, hash, incognito,
+  loading, marksText, paperLabel, percent, practiceHref, replace, TYPE_LABELS, TYPE_NAMES, when,
 } from "../ui.js";
+import { entryText, mistakeForm } from "./notebook.js";
 
 // topic is a topic id of the exam's topic list (needs exam); site_topic is the source site's own topic label
 const FILTERS = ["exam", "year", "paper", "subject", "topic", "site_topic", "type", "q", "list"];
@@ -17,7 +18,7 @@ function describe(params) {
     return params.get("title");
   }
   if (params.get("paper")) {
-    return params.get("paper");
+    return paperLabel(params.get("paper"), params.get("exam"));
   }
   if (params.get("list")) {
     return LIST_NAMES[params.get("list")] || "Saved questions";
@@ -25,7 +26,7 @@ function describe(params) {
   if (params.get("q")) {
     return `Search: ${params.get("q")}`;
   }
-  const parts = [params.get("exam") && examName(params.get("exam")), params.get("subject"), params.get("site_topic"), params.get("topic"),
+  const parts = [params.get("exam") && examLabel(params.get("exam")), params.get("subject"), params.get("site_topic"), params.get("topic"),
     params.get("year"), params.get("type") && TYPE_LABELS[params.get("type")]].filter(Boolean);
   return parts.join(" · ") || "All questions";
 }
@@ -40,10 +41,10 @@ function backLink(params) {
   }
   const from = BROWSE_VIEWS.find(([key]) => key === params.get("from")) || (params.get("topic") ? BROWSE_VIEWS[0] : null);
   if (exam && from) {
-    return [browseHref(exam, from[0]), `${examName(exam)} ${from[1].toLowerCase()}`];
+    return [browseHref(exam, from[0]), `${examLabel(exam)} ${from[1].toLowerCase()}`];
   }
   if (exam) {
-    return [`#/practice/${encodeURIComponent(exam)}`, examName(exam)];
+    return [practiceHref(exam), examLabel(exam)];
   }
   return ["#/practice", "Practice"];
 }
@@ -104,7 +105,7 @@ export async function renderRun(view, { params, app }) {
     fixed.set("title", title);
     fixed.set("mode", "random");
     fixed.set("n", params.get("random"));
-    history.replaceState(null, "", `#/run?${fixed}`);
+    history.replaceState(null, "", hash("run", fixed));
     params = fixed;
   }
   const randomRun = params.get("mode") === "random";
@@ -231,7 +232,7 @@ export async function renderRun(view, { params, app }) {
     updatePalette();
     const at = new URLSearchParams(params);
     at.set("at", run.ids[i]);
-    history.replaceState(null, "", `#/run?${at}`);
+    history.replaceState(null, "", hash("run", at));
     card.replaceChildren(loading());
     let data;
     try {
@@ -450,6 +451,11 @@ export async function renderRun(view, { params, app }) {
       if (state.attempts) {
         lines.push(el("p", { class: "muted", text: `You have answered this question ${state.attempts} time${state.attempts === 1 ? "" : "s"}, ${state.correct} correct.` }));
       }
+      if (result.kind === "answered" && result.isCorrect === false) {
+        lines.push(el("p", { class: "notebook-prompt" },
+          el("button", { class: "btn btn-small", type: "button", onclick: () => openForm(result.attemptId) }, "Add to error notebook"),
+          el("span", { class: "muted small", text: " why it went wrong, and what to remember" })));
+      }
       const explanation = question.explanation && question.explanation.blocks && question.explanation.blocks.length
         ? el("div", { class: "explanation" }, el("h3", { text: "Solution" }), blocks(question, question.explanation.blocks))
         : el("p", { class: "muted", text: "No solution was given with this question." });
@@ -482,7 +488,7 @@ export async function renderRun(view, { params, app }) {
         if (response.is_correct) {
           state.correct += 1;
         }
-        const result = { kind: "answered", selected, isCorrect: response.is_correct, answer: response.answer };
+        const result = { kind: "answered", selected, isCorrect: response.is_correct, answer: response.answer, attemptId: response.attempt_id };
         run.results.set(id, result);
         clearInterval(run.timer);
         if (numberInput) {
@@ -554,19 +560,112 @@ export async function renderRun(view, { params, app }) {
       }
     });
 
-    const meta = [question.paper || examName(question.exam), `Q${question.question_number}`, question.subject].filter(Boolean);
+    // Error notebook (CP40A): this question's entries, newest first, and a form to add or change one
+    state.mistakes = state.mistakes || []; // a worker older than CP40A sends none
+    const notebookButton = el("button", { class: "btn btn-ghost toggle", type: "button" });
+    const notebookBox = el("div", { class: "notebook-box", hidden: true });
+
+    function notebookLabel() {
+      notebookButton.textContent = state.mistakes.length ? `Notebook (${state.mistakes.length})` : "Notebook";
+      notebookButton.setAttribute("aria-pressed", String(state.mistakes.length > 0));
+    }
+
+    function lastWrongAttempt() {
+      const result = run.results.get(id);
+      return result && result.kind === "answered" && result.isCorrect === false ? result.attemptId : undefined;
+    }
+
+    function drawNotebook(form, editing) {
+      notebookLabel();
+      replace(notebookBox,
+        el("div", { class: "notebook-box-head" }, el("strong", { text: "Error notebook" }), el("a", { class: "small", href: "#/notebook" }, "Open the notebook")),
+        state.mistakes.map((entry) => (entry.id === editing ? form : el("div", { class: entry.resolved ? "mistake mini resolved" : "mistake mini" },
+          el("div", { class: "mistake-foot" },
+            el("span", { class: "muted small", text: `${when(entry.created_at)}${entry.resolved ? " · resolved" : ""}` }),
+            el("button", { class: "btn btn-ghost btn-small", type: "button", onclick: () => editEntry(entry) }, "Edit")),
+          entryText(entry)))),
+        form && editing === undefined ? form
+          : el("button", { class: "btn btn-small", type: "button", onclick: () => openForm(lastWrongAttempt()) }, state.mistakes.length ? "+ Another entry" : "+ Add an entry"));
+    }
+
+    function openForm(attemptId) {
+      const form = mistakeForm({ questionId: id, attemptId, onSaved: (saved) => {
+        state.mistakes = [saved, ...state.mistakes];
+        drawNotebook();
+      }, onCancel: () => drawNotebook() });
+      notebookBox.hidden = false;
+      drawNotebook(form);
+      form.focusFirst();
+      notebookBox.scrollIntoView({ block: "nearest" });
+    }
+
+    function editEntry(entry) {
+      const form = mistakeForm({ entry, onSaved: (saved) => {
+        state.mistakes = state.mistakes.map((item) => (item.id === saved.id ? saved : item));
+        drawNotebook();
+      }, onCancel: () => drawNotebook() });
+      drawNotebook(form, entry.id);
+      form.focusFirst();
+    }
+
+    notebookButton.addEventListener("click", () => {
+      if (!notebookBox.hidden) {
+        notebookBox.hidden = true;
+      } else if (!state.mistakes.length) {
+        openForm(lastWrongAttempt());
+      } else {
+        notebookBox.hidden = false;
+        drawNotebook();
+      }
+    });
+    notebookLabel();
+
+    // Incognito display: the year tag (the paper, e.g. "GATE CSE 2023 SET-1") and the topics wait behind the eye.
+    // Each question starts hidden again; the rest of the line (number, subject, type, marks) always shows.
+    const masked = incognito();
+    let revealed = !masked;
+    const yearTag = el("span", { class: "year-tag" });
+    const topicLine = topicsRow(data);
+    // the source page's address names the exam and year, so it waits behind the eye too
+    const sourceLink = question.source && question.source.url ? external(question.source.url, "Source") : null;
+    const eye = masked ? el("button", { class: "eye-button", type: "button" }) : null;
+    function drawTag() {
+      yearTag.textContent = revealed ? question.paper || examName(question.exam) : examLabel(question.exam);
+      topicLine.hidden = !revealed;
+      if (sourceLink) {
+        sourceLink.hidden = !revealed;
+      }
+      if (eye) {
+        const label = revealed ? "Hide the year and topics" : "Show the year and topics";
+        eye.setAttribute("aria-pressed", String(revealed));
+        eye.setAttribute("aria-label", label);
+        eye.title = label;
+        eye.replaceChildren(eyeIcon(revealed));
+      }
+    }
+    if (eye) {
+      eye.addEventListener("click", () => {
+        revealed = !revealed;
+        drawTag();
+      });
+    }
+    drawTag();
+
     card.replaceChildren(
       el("div", { class: "qmeta" },
-        el("span", { text: meta.join(" · ") }),
+        el("span", {}, yearTag, ` · Q${question.question_number}`, question.subject ? ` · ${question.subject}` : ""),
+        eye,
         el("span", { class: "chip", title: TYPE_NAMES[question.question_type] || "", text: TYPE_LABELS[question.question_type] || question.question_type }),
         marksText(question.marks) ? el("span", { class: "chip", text: marksText(question.marks) }) : null),
-      topicsRow(data),
+      topicLine,
       el("div", { class: "qtools" },
         toggleButton("Bookmark", "bookmarked", (on) => api.bookmark(id, on)),
         toggleButton("Favourite", "favorite", (on) => api.favorite(id, on)),
         noteButton,
-        question.source && question.source.url ? external(question.source.url, "Source") : null),
+        notebookButton,
+        sourceLink),
       noteBox,
+      notebookBox,
       el("div", { class: "stem" }, blocks(question, question.content.blocks)),
       optionsBox,
       message,
@@ -616,7 +715,7 @@ export async function renderRun(view, { params, app }) {
         wrongIds.length ? el("a", { class: "btn btn-primary", href: hash("run", { ids: wrongIds.slice(0, 100).join(","), title: `Mistakes: ${title}` }) },
           `Review ${wrongIds.length} mistake${wrongIds.length === 1 ? "" : "s"}`) : null,
         el("button", { class: "btn", type: "button", onclick: () => {
-          history.replaceState(null, "", `#/run?${again}`);
+          history.replaceState(null, "", hash("run", again));
           window.dispatchEvent(new HashChangeEvent("hashchange"));
         } }, "Practice again"),
         el("a", { class: "btn btn-ghost", href: backHref }, `Back to ${backText}`))));

@@ -86,6 +86,141 @@ export function examName(exam) {
   return String(exam || "").split("-").map((part) => part.toUpperCase()).join(" ");
 }
 
+// Incognito display (set on the worker's admin page): exams are shown under an alias such as "Paper A", each
+// question's year tag and topics wait behind an eye button, and addresses carry opaque codes instead of exam and paper
+// names (exams and papers: a short hash; questions: the 16 hex digits of their id). Addresses in either form open.
+const display = { incognito: false, exams: {} };
+const codes = new Map(); // address code -> exam id or paper name
+const shortIds = new Map(); // 16 hex digits -> full question id
+
+function addressCode(text) {
+  let value = 0x811c9dc5; // FNV-1a, 32 bits: short, stable, the same in every browser
+  for (const byte of new TextEncoder().encode(text)) {
+    value = Math.imul(value ^ byte, 0x01000193) >>> 0;
+  }
+  return value.toString(16).padStart(8, "0");
+}
+
+export function setDisplay(settings, exams) {
+  display.incognito = Boolean(settings && settings.incognito);
+  display.exams = (settings && settings.exams) || {};
+  codes.clear();
+  exams.forEach((exam) => {
+    codes.set(addressCode(`exam:${exam.exam}`), exam.exam);
+    (exam.papers || []).forEach((paper) => codes.set(addressCode(`paper:${paper}`), paper));
+  });
+}
+
+export function incognito() {
+  return display.incognito;
+}
+
+// The exam's name in navigation: its alias in incognito mode
+export function examLabel(exam) {
+  return display.incognito && display.exams[exam] ? display.exams[exam].alias : examName(exam);
+}
+
+// A paper as a title: "Paper A 2023 Set 1" in incognito mode, else its own name ("GATE CSE 2023 SET-1")
+export function paperLabel(paper, exam) {
+  if (!display.incognito || !paper) {
+    return paper;
+  }
+  const year = (paper.match(/\d{4}/) || [""])[0];
+  const rest = paper.replace(/^.*?\d{4}\s*/, "").trim().replace(/^SET[-\s]*(\d+)$/i, "Set $1");
+  return [examLabel(exam || ""), year, rest].filter(Boolean).join(" ");
+}
+
+function shortId(id) {
+  const cut = id.indexOf(":");
+  if (cut < 0) {
+    return id;
+  }
+  shortIds.set(id.slice(cut + 1), id);
+  return id.slice(cut + 1);
+}
+
+function addressValue(key, value) {
+  if (!display.incognito) {
+    return value;
+  }
+  if (key === "exam") {
+    return addressCode(`exam:${value}`);
+  }
+  if (key === "paper") {
+    return addressCode(`paper:${value}`);
+  }
+  if (key === "id" || key === "at") {
+    return shortId(value);
+  }
+  if (key === "ids") {
+    return value.split(",").map(shortId).join(",");
+  }
+  return value;
+}
+
+export function examInAddress(exam) {
+  return display.incognito ? addressCode(`exam:${exam}`) : exam;
+}
+
+export function examFromAddress(value) {
+  return codes.get(value) || value;
+}
+
+export function rememberIds(found) {
+  Object.entries(found || {}).forEach(([short, id]) => shortIds.set(short, id));
+}
+
+// An address's parameters in their real form (exam ids, paper names, full question ids), and the short question ids
+// this browser has not seen yet (the worker resolves those: /api/ids).
+export function readAddress(params) {
+  const real = new URLSearchParams();
+  const unknown = new Set();
+  const full = (value) => {
+    if (value.includes(":") || !/^[0-9a-f]{16}$/.test(value)) {
+      return value;
+    }
+    if (!shortIds.has(value)) {
+      unknown.add(value);
+    }
+    return shortIds.get(value) || value;
+  };
+  params.forEach((value, key) => {
+    if (key === "exam" || key === "paper") {
+      real.append(key, codes.get(value) || value);
+    } else if (key === "id" || key === "at") {
+      real.append(key, full(value));
+    } else if (key === "ids") {
+      real.append(key, value.split(",").map(full).join(","));
+    } else {
+      real.append(key, value);
+    }
+  });
+  return { params: real, unknown: [...unknown] };
+}
+
+export function practiceHref(exam) {
+  return `#/practice/${encodeURIComponent(examInAddress(exam))}`;
+}
+
+// An eye drawn as SVG (no inline style, so the page's Content Security Policy allows it); crossed out when "hide"
+export function eyeIcon(crossed) {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  Object.entries({ viewBox: "0 0 24 24", width: "18", height: "18", fill: "none", stroke: "currentColor", "stroke-width": "2",
+    "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true", focusable: "false", class: "eye-icon" })
+    .forEach(([key, value]) => svg.setAttribute(key, value));
+  const shapes = [["path", { d: "M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" }], ["circle", { cx: "12", cy: "12", r: "3" }]];
+  if (crossed) {
+    shapes.push(["path", { d: "M3 3l18 18" }]);
+  }
+  shapes.forEach(([tag, attributes]) => {
+    const shape = document.createElementNS(ns, tag);
+    Object.entries(attributes).forEach(([key, value]) => shape.setAttribute(key, value));
+    svg.appendChild(shape);
+  });
+  return svg;
+}
+
 // An exam's papers by year, newest last: year -> [{paper, label ("Set 2" or "Paper"), count}].
 export function papersByYear(exam) {
   const papers = Object.entries(exam.paper_counts || {}).length
@@ -107,7 +242,7 @@ export function papersByYear(exam) {
 export const BROWSE_VIEWS = [["topics", "Topic wise"], ["subjects", "Subject wise"], ["years", "Year wise"]];
 
 export function browseHref(exam, kind, params) {
-  return hash(`exam/${encodeURIComponent(exam)}/${kind}`, params);
+  return hash(`exam/${encodeURIComponent(examInAddress(exam))}/${kind}`, params);
 }
 
 export const TYPE_LABELS = { mcq_single: "MCQ", mcq_multiple: "MSQ", numerical: "NAT" };
@@ -161,11 +296,14 @@ export function questionLabel(item) {
   return `${item.paper || examName(item.exam)} · Q${item.question_number}`;
 }
 
+// An address in the app: #/<path>?<params>. Takes an object or URLSearchParams; empty values are left out, and in
+// incognito mode exams, papers and question ids are written as codes.
 export function hash(path, params) {
   const search = new URLSearchParams();
-  Object.entries(params || {}).forEach(([key, value]) => {
+  const entries = params instanceof URLSearchParams ? [...params.entries()] : Object.entries(params || {});
+  entries.forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") {
-      search.set(key, value);
+      search.set(key, addressValue(key, String(value)));
     }
   });
   const text = search.toString();
