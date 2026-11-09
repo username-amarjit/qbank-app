@@ -2,7 +2,7 @@
 // Topic wise uses the fine topics of each question (taxonomy/<exam>.json), with your own corrections included.
 import { api } from "../api.js";
 import {
-  BROWSE_VIEWS, browseHref, el, emptyState, errorBanner, examName, hash, loading, papersByYear, replace, tabs,
+  BROWSE_VIEWS, browseHref, el, emptyState, errorBanner, examLabel, hash, loading, papersByYear, practiceHref, replace, tabs,
 } from "../ui.js";
 
 function run(exam, params, from) {
@@ -103,7 +103,7 @@ function yearsView(view, exam) {
     Object.entries(exam.years || {}).reverse().map(([year, count]) => {
       const papers = byYear.get(year) || [];
       return el("div", { class: "year-row" },
-        el("a", { class: "year", href: run(exam.exam, { year, title: `${examName(exam.exam)} ${year}` }, "years"), title: `All ${count} questions of ${year}` }, year),
+        el("a", { class: "year", href: run(exam.exam, { year, title: `${examLabel(exam.exam)} ${year}` }, "years"), title: `All ${count} questions of ${year}` }, year),
         el("ul", { class: "link-grid" }, papers.map(({ paper, label, count: paperCount }) =>
           el("li", {}, countLink(run(exam.exam, { paper }, "years"), label, paperCount ?? "")))));
     }))));
@@ -119,8 +119,8 @@ export async function renderBrowse(view, { args, params, app }) {
   view.append(
     el("div", { class: "page-head" },
       el("div", {},
-        el("a", { href: `#/practice/${encodeURIComponent(exam.exam)}`, class: "back" }, `← ${examName(exam.exam)} practice`),
-        el("h1", { text: `${examName(exam.exam)} · ${BROWSE_VIEWS.find(([key]) => key === kind)[1]}` })),
+        el("a", { href: practiceHref(exam.exam), class: "back" }, `← ${examLabel(exam.exam)} practice`),
+        el("h1", { text: `${examLabel(exam.exam)} · ${BROWSE_VIEWS.find(([key]) => key === kind)[1]}` })),
       el("p", { class: "muted", text: `${exam.question_count} questions` })),
     tabs(BROWSE_VIEWS.map(([key, text]) => [browseHref(exam.exam, key), text, key]), kind));
   if (kind === "subjects") {
