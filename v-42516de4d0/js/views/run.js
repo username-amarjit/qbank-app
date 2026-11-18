@@ -8,7 +8,7 @@ import {
 import { entryText, mistakeForm } from "./notebook.js";
 
 // topic is a topic id of the exam's topic list (needs exam); site_topic is the source site's own topic label
-const FILTERS = ["exam", "year", "paper", "subject", "topic", "site_topic", "type", "q", "list"];
+const FILTERS = ["exam", "year", "paper", "subject", "topic", "site_topic", "type", "origin", "q", "list"];
 const MAX_QUESTIONS = 500;
 const MAX_NOTE = 10000;
 const LIST_NAMES = { bookmarks: "Bookmarks", favorites: "Favourites", notes: "Questions with notes" };
@@ -329,6 +329,7 @@ export async function renderRun(view, { params, app }) {
           subject.topics.filter((topic) => !have.has(topic.id)).map((topic) => el("option", { value: topic.id, text: topic.name })))));
       const form = el("form", { class: "topic-picker" }, picker,
         el("button", { class: "btn btn-small", type: "submit" }, "Add"),
+        el("button", { class: "btn btn-ghost btn-small", type: "button", onclick: () => create(list) }, "New topic…"),
         el("button", { class: "btn btn-ghost btn-small", type: "button", onclick: () => draw() }, "Cancel"));
       form.addEventListener("submit", (event) => {
         event.preventDefault();
@@ -339,6 +340,36 @@ export async function renderRun(view, { params, app }) {
       replace(row, el("span", { class: "qtopics-label", text: "Topics:" }), chips(), form, status);
       status.textContent = "";
       picker.focus();
+    }
+
+    // A topic the list does not have (CP40E): create it in a subject (the question's own by default) and add it here.
+    function create(list) {
+      const name = el("input", { type: "text", maxlength: "80", required: true, autocomplete: "off", "aria-label": "Name of the new topic",
+        placeholder: "Name of the new topic" });
+      const subject = el("select", { "aria-label": "Subject of the new topic" },
+        list.subjects.map((entry) => el("option", { value: entry.subject, text: entry.subject, selected: entry.subject === question.subject })));
+      const submit = el("button", { class: "btn btn-small", type: "submit" }, "Create and add");
+      const form = el("form", { class: "topic-picker" }, name, subject, submit,
+        el("button", { class: "btn btn-ghost btn-small", type: "button", onclick: () => pick() }, "Back"));
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (busy) {
+          return;
+        }
+        submit.disabled = true;
+        status.textContent = "Creating…";
+        try {
+          const topic = await api.createTopic(question.exam, { subject: subject.value, name: name.value });
+          topicLists.delete(question.exam);
+          await change({ add: topic.id }, `Created ${topic.name} and added it.`);
+        } catch (error) {
+          submit.disabled = false;
+          status.textContent = error.message;
+        }
+      });
+      replace(row, el("span", { class: "qtopics-label", text: "Topics:" }), chips(), form, status);
+      status.textContent = "";
+      name.focus();
     }
 
     draw();
@@ -459,7 +490,9 @@ export async function renderRun(view, { params, app }) {
       const explanation = question.explanation && question.explanation.blocks && question.explanation.blocks.length
         ? el("div", { class: "explanation" }, el("h3", { text: "Solution" }), blocks(question, question.explanation.blocks))
         : el("p", { class: "muted", text: "No solution was given with this question." });
-      feedback.replaceChildren(el("div", { class: `feedback ${kind}` }, lines, explanation));
+      const reasoning = question.reasoning && question.reasoning.blocks && question.reasoning.blocks.length
+        ? el("div", { class: "explanation" }, el("h3", { text: "Reasoning" }), blocks(question, question.reasoning.blocks)) : null;
+      feedback.replaceChildren(el("div", { class: `feedback ${kind}` }, lines, explanation, reasoning));
     }
 
     async function check() {
@@ -655,6 +688,7 @@ export async function renderRun(view, { params, app }) {
       el("div", { class: "qmeta" },
         el("span", {}, yearTag, ` · Q${question.question_number}`, question.subject ? ` · ${question.subject}` : ""),
         eye,
+        question.origin === "mock" ? el("span", { class: "chip chip-mock", text: "Mock" }) : null,
         el("span", { class: "chip", title: TYPE_NAMES[question.question_type] || "", text: TYPE_LABELS[question.question_type] || question.question_type }),
         marksText(question.marks) ? el("span", { class: "chip", text: marksText(question.marks) }) : null),
       topicLine,

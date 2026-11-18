@@ -5,6 +5,7 @@ import {
   rememberIds, replace, setDisplay,
 } from "./ui.js";
 import { renderAnalytics } from "./views/analytics.js";
+import { renderAdd } from "./views/add.js";
 import { renderBrowse } from "./views/browse.js";
 import { renderDashboard } from "./views/dashboard.js";
 import { renderHistory } from "./views/history.js";
@@ -15,12 +16,17 @@ import { renderSaved } from "./views/saved.js";
 import { renderSearch } from "./views/search.js";
 import { renderSessions } from "./views/sessions.js";
 import { renderSettings } from "./views/settings.js";
+import { renderTest } from "./views/test.js";
+import { renderTests } from "./views/tests.js";
 
 const ROUTES = {
   "": renderDashboard,
   practice: renderPractice,
   exam: renderBrowse,
   run: renderRun,
+  tests: renderTests,
+  test: renderTest,
+  add: renderAdd,
   search: renderSearch,
   saved: renderSaved,
   notebook: renderNotebook,
@@ -31,6 +37,12 @@ const ROUTES = {
 };
 
 const app = { connected: false, health: null, exams: [], settings: {}, reconnect: () => connect() };
+// after you add or delete questions: counts, mock sets and papers change
+app.refreshExams = async () => {
+  app.exams = await api.exams();
+  setDisplay(app.display, app.exams);
+  buildMenus();
+};
 const view = document.getElementById("view");
 const status = document.getElementById("conn");
 const menus = document.getElementById("exam-menus");
@@ -57,6 +69,9 @@ function buildMenus() {
   replace(menus, app.exams.map((exam, index) => {
     const list = el("ul", { class: "menu", id: `menu-${index}`, hidden: true },
       BROWSE_VIEWS.map(([key, text]) => el("li", {}, el("a", { href: browseHref(exam.exam, key) }, text))),
+      el("li", { class: "sep" }, el("a", { href: hash("tests/topics", { exam: exam.exam }) }, "Topic test")),
+      el("li", {}, el("a", { href: hash("tests/subjects", { exam: exam.exam }) }, "Subject test")),
+      el("li", {}, el("a", { href: hash("tests/full", { exam: exam.exam }) }, "Full mock test")),
       el("li", { class: "sep" }, el("a", { href: practiceHref(exam.exam) }, "Practice home")),
       el("li", {}, el("a", { href: hash("run", { exam: exam.exam, random: 10 }) }, "10 random questions")));
     const button = el("button", { type: "button", class: "menu-button", "aria-expanded": "false", "aria-controls": list.id, dataset: { index: String(index) } },
@@ -117,7 +132,7 @@ async function parseHash() {
 function markNav(name, args) {
   document.querySelectorAll(".nav a").forEach((anchor) => {
     const active = anchor.dataset.route === name || (name === "run" && anchor.dataset.route === "practice") ||
-      (name === "sessions" && anchor.dataset.route === "history");
+      (name === "sessions" && anchor.dataset.route === "history") || (name === "test" && anchor.dataset.route === "tests");
     anchor.classList.toggle("active", active);
     if (active) {
       anchor.setAttribute("aria-current", "page");
@@ -243,6 +258,7 @@ async function connect() {
       api.display().catch((error) => (error instanceof WorkerUnreachable ? Promise.reject(error) : null))]);
     // a worker older than the incognito display has no /api/display: names are then shown as they are
     setDisplay(display, app.exams);
+    app.display = display;
   } catch (error) {
     app.connected = false;
     if (error instanceof WorkerUnreachable) {

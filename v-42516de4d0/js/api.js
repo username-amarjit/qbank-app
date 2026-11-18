@@ -85,6 +85,12 @@ export const api = {
   resolveIds: (shorts) => call("GET", "/api/ids" + query({ short: shorts.join(",") })).then((data) => data.ids),
   examTopics: (exam) => call("GET", `/api/exams/${encodeURIComponent(exam)}/topics`),
   editTopics: (id, change) => call("POST", `/api/questions/${encodeURIComponent(id)}/topics`, change),
+  // Your own topics (CP40E)
+  createTopic: (exam, fields) => call("POST", `/api/exams/${encodeURIComponent(exam)}/topics`, fields).then((data) => data.topic),
+  updateTopic: (exam, id, fields) => call("PUT", `/api/exams/${encodeURIComponent(exam)}/topics/${encodeURIComponent(id)}`, fields).then((data) => data.topic),
+  deleteTopic: (exam, id) => call("DELETE", `/api/exams/${encodeURIComponent(exam)}/topics/${encodeURIComponent(id)}`),
+  findForTopic: (exam, id, params) => call("GET", `/api/exams/${encodeURIComponent(exam)}/topics/${encodeURIComponent(id)}/find` + query(params)),
+  tagTopic: (exam, id, changes) => call("POST", `/api/exams/${encodeURIComponent(exam)}/topics/${encodeURIComponent(id)}/questions`, changes),
   questions: (params) => call("GET", "/api/questions" + query(params)),
   search: (params) => call("GET", "/api/search" + query(params)),
   question: (id) => call("GET", `/api/questions/${encodeURIComponent(id)}`),
@@ -105,6 +111,38 @@ export const api = {
   deleteMistake: (id) => call("DELETE", `/api/mistakes/${encodeURIComponent(id)}`),
   settings: () => call("GET", "/api/settings").then((data) => data.settings),
   saveSettings: (values) => call("PUT", "/api/settings", values).then((data) => data.settings),
+  // Your own questions (CP40D)
+  authoredFormat: () => call("GET", "/api/authored/format"),
+  uploadQuestions: (file, defaults, dryRun) => call("POST", "/api/authored/upload", { file, defaults, dry_run: dryRun }),
+  checkQuestion: (cells, id) => call("POST", "/api/authored/check", { cells, id }),
+  addQuestion: (cells) => call("POST", "/api/authored", { cells }),
+  myQuestions: (params) => call("GET", "/api/authored" + query(params)),
+  myQuestion: (id) => call("GET", `/api/authored/${encodeURIComponent(id)}`),
+  updateQuestion: (id, cells) => call("PUT", `/api/authored/${encodeURIComponent(id)}`, { cells }),
+  deleteQuestions: (ids) => call("POST", "/api/authored/delete", { ids }).then((data) => data.deleted),
+  // Tests (CP40D)
+  blueprint: (exam, origins) => call("GET", "/api/tests/blueprint" + query({ exam, origins: origins.join(",") })),
+  createTest: (body) => call("POST", "/api/tests", body).then((data) => data.test),
+  tests: () => call("GET", "/api/tests").then((data) => data.tests),
+  test: (id) => call("GET", `/api/tests/${encodeURIComponent(id)}`).then((data) => data.test),
+  startTest: (id) => call("POST", `/api/tests/${encodeURIComponent(id)}/start`, {}).then((data) => data.test),
+  saveResponses: (id, responses) => call("PUT", `/api/tests/${encodeURIComponent(id)}/responses`, { responses }),
+  submitTest: (id, responses) => call("POST", `/api/tests/${encodeURIComponent(id)}/submit`, { responses }).then((data) => data.test),
+  deleteTest: (id) => call("DELETE", `/api/tests/${encodeURIComponent(id)}`),
+  // A file from the worker (the sample upload file), as a blob and its name
+  download: async (path) => {
+    let response;
+    try {
+      response = await fetch(WORKER + path, servedByWorker ? { cache: "no-store" } : { mode: "cors", credentials: "omit", cache: "no-store", targetAddressSpace: "loopback" });
+    } catch (error) {
+      throw new WorkerUnreachable(`The QBank worker did not answer at ${WORKER}.`);
+    }
+    if (!response.ok) {
+      throw new WorkerError(response.status, "download", `The worker answered ${response.status}.`);
+    }
+    const name = ((response.headers.get("Content-Disposition") || "").match(/filename="([^"]+)"/) || [])[1] || "download";
+    return { blob: await response.blob(), name };
+  },
   assetUrl: (exam, asset) => `${WORKER}/assets/${encodeURIComponent(exam)}/${asset.path}`,
   // Images through fetch too: from an HTTPS page this is the request Local Network Access expects for 127.0.0.1,
   // and it is never mixed content. Images are named by SHA-256, so the browser cache can serve them for good.

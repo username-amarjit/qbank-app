@@ -107,7 +107,7 @@ export function setDisplay(settings, exams) {
   codes.clear();
   exams.forEach((exam) => {
     codes.set(addressCode(`exam:${exam.exam}`), exam.exam);
-    (exam.papers || []).forEach((paper) => codes.set(addressCode(`paper:${paper}`), paper));
+    [...(exam.papers || []), ...Object.keys(exam.mock_sets || {})].forEach((paper) => codes.set(addressCode(`paper:${paper}`), paper));
   });
 }
 
