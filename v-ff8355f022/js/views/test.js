@@ -1,7 +1,7 @@
 // Taking a test (CP40D), GATE style: answers hidden until you submit, a countdown that submits at zero, mark for review,
 // a palette of question states; then the result with marks per subject and every question's solution and reasoning.
 import { api } from "../api.js";
-import { answerText, append, blocks, clock, el, emptyState, errorBanner, hash, loading, percent, replace, TYPE_LABELS } from "../ui.js";
+import { ANSWER_KEY, answerText, append, blocks, clock, el, emptyState, errorBanner, focusAnswer, hash, loading, percent, replace, TYPE_LABELS } from "../ui.js";
 import { mistakeForm } from "./notebook.js";
 import { testTitle } from "./tests.js";
 
@@ -51,6 +51,7 @@ function runner(view, test, app, onSubmitted) {
   let tick = null;
   let ended = false;
   let deadline = test.remaining_seconds === null ? null : Date.now() + test.remaining_seconds * 1000;
+  let answerInput = null; // the shown question's NAT answer box
 
   const timer = el("span", { class: "test-timer", role: "timer", "aria-live": "off" });
   const saved = el("span", { class: "muted small", role: "status" });
@@ -183,6 +184,24 @@ function runner(view, test, app, onSubmitted) {
         response.selected = value === "" ? null : value;
         changed(id);
       });
+      input.addEventListener("keydown", (event) => {
+        if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+          return;
+        }
+        if (event.key === "Enter") {
+          // Save & next without the mouse; on the last question only save (submitting stays a click on Submit test)
+          event.preventDefault();
+          if (index < ids.length - 1) {
+            go(index + 1);
+          } else {
+            flush();
+          }
+        } else if ((event.key === "ArrowLeft" || event.key === "ArrowRight") && input.value === "") {
+          // the box has the focus: while it is empty, ← → still change the question
+          event.preventDefault();
+          go(index + (event.key === "ArrowRight" ? 1 : -1));
+        }
+      });
     } else {
       const nodes = new Map();
       const sync = () => nodes.forEach((node, label) => {
@@ -244,6 +263,7 @@ function runner(view, test, app, onSubmitted) {
           }
           card.querySelectorAll(".option").forEach((node) => { node.classList.remove("selected"); node.setAttribute("aria-checked", "false"); });
           changed(id);
+          focusAnswer(input);
         } }, "Clear response"),
         el("button", { class: "btn btn-review", type: "button", onclick: () => {
           response.marked = !response.marked;
@@ -256,6 +276,8 @@ function runner(view, test, app, onSubmitted) {
         } }, response.marked ? "Unmark review" : "Mark for review & next"),
         el("button", { class: "btn btn-primary", type: "button", onclick: () => (index < ids.length - 1 ? go(index + 1) : confirmSubmit()) },
           index < ids.length - 1 ? "Save & next →" : "Save & finish")));
+    answerInput = input;
+    focusAnswer(input);
   }
 
   function confirmSubmit() {
@@ -313,9 +335,15 @@ function runner(view, test, app, onSubmitted) {
     if (event.altKey || event.ctrlKey || event.metaKey || (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) {
       return;
     }
+    // after a click elsewhere on a NAT question, a typed number still goes into its answer box (the key carries on there)
+    if (answerInput && ANSWER_KEY.test(event.key) && focusAnswer(answerInput, true)) {
+      return;
+    }
     if (event.key === "ArrowRight") {
+      event.preventDefault(); // else the key carries on into a NAT answer box the new question focuses
       go(index + 1);
     } else if (event.key === "ArrowLeft") {
+      event.preventDefault();
       go(index - 1);
     }
   }

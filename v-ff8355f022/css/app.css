@@ -265,11 +265,11 @@ table.data tbody th { font-weight: 500; }
 
 /* Your own topics (CP40E) */
 .card-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.9rem; }
-.link-grid li.my-topic { display: flex; gap: 0.3rem; align-items: stretch; }
-.link-grid li.my-topic > a, .link-grid li.my-topic > .link-empty { flex: 1 1 auto; min-width: 0; }
+.link-grid li.my-topic { position: relative; }
+.link-grid li.my-topic > a, .link-grid li.my-topic > .link-empty { padding-right: 2.7rem; }
 .mine-tag { display: inline-block; margin-left: 0.4rem; padding: 0 0.4rem; border-radius: 999px; border: 1px solid var(--accent); background: var(--accent-soft); color: var(--accent); font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; vertical-align: 0.1em; }
-.topic-edit { flex: 0 0 auto; width: 2.2rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--muted); font: inherit; cursor: pointer; }
-.topic-edit:hover, .topic-edit[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
+.topic-edit { position: absolute; top: 0.3rem; right: 0.3rem; width: 2rem; height: 2rem; display: flex; align-items: center; justify-content: center; padding: 0; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; line-height: 1; cursor: pointer; }
+.topic-edit:hover, .topic-edit:focus-visible, .topic-edit[aria-expanded="true"] { border-color: var(--accent); background: var(--surface); color: var(--accent); }
 .topic-panel:not(:empty) { margin-top: 0.9rem; padding: 0.8rem 0.9rem; border: 1px solid var(--accent); border-radius: 8px; background: var(--accent-soft); }
 .topic-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.6rem; align-items: end; }
 .topic-form h3 { grid-column: 1 / -1; margin: 0; font-size: 1rem; }

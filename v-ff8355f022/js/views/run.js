@@ -2,8 +2,8 @@
 // favourites and notes. It plays any list: a paper, a subject, a year, a search, a saved list, or random questions.
 import { api } from "../api.js";
 import {
-  answerText, blocks, BROWSE_VIEWS, browseHref, clock, el, emptyState, errorBanner, examLabel, examName, external, eyeIcon, hash, incognito,
-  loading, marksText, paperLabel, percent, practiceHref, replace, TYPE_LABELS, TYPE_NAMES, when,
+  ANSWER_KEY, answerText, blocks, BROWSE_VIEWS, browseHref, clock, el, emptyState, errorBanner, examLabel, examName, external, eyeIcon, focusAnswer,
+  hash, incognito, loading, marksText, paperLabel, percent, practiceHref, replace, TYPE_LABELS, TYPE_NAMES, when,
 } from "../ui.js";
 import { entryText, mistakeForm } from "./notebook.js";
 
@@ -393,6 +393,11 @@ export async function renderRun(view, { params, app }) {
           if (event.key === "Enter") {
             event.preventDefault();
             check();
+          } else if ((event.key === "ArrowLeft" || event.key === "ArrowRight") && event.target.value === "" && settings.shortcuts !== false
+            && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+            // the box has the focus on a NAT question: while it is empty, ← → still change the question
+            event.preventDefault();
+            show(run.index + (event.key === "ArrowRight" ? 1 : -1));
           }
         } })
       : null;
@@ -426,6 +431,7 @@ export async function renderRun(view, { params, app }) {
         numberInput.value = "";
       }
       sync();
+      focusAnswer(numberInput);
     } }, "Clear");
 
     function sync() {
@@ -719,6 +725,8 @@ export async function renderRun(view, { params, app }) {
       }
     };
     card.check = () => check();
+    card.answerInput = numberInput;
+    focusAnswer(numberInput);
   }
 
   function finish() {
@@ -756,16 +764,25 @@ export async function renderRun(view, { params, app }) {
   }
 
   function onKey(event) {
-    if (run.finished || event.altKey || event.ctrlKey || event.metaKey || settings.shortcuts === false) {
+    if (run.finished || event.altKey || event.ctrlKey || event.metaKey) {
       return;
     }
     const target = event.target;
     if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT")) {
       return;
     }
+    // after a click elsewhere on a NAT question, a typed number still goes into its answer box (the key carries on there)
+    if (card.answerInput && ANSWER_KEY.test(event.key) && focusAnswer(card.answerInput, true)) {
+      return;
+    }
+    if (settings.shortcuts === false) {
+      return;
+    }
     if (event.key === "ArrowRight") {
+      event.preventDefault(); // else the key carries on into a NAT answer box the new question focuses
       show(run.index + 1);
     } else if (event.key === "ArrowLeft") {
+      event.preventDefault();
       show(run.index - 1);
     } else if (/^[1-9]$/.test(event.key) && card.chooseOption) {
       card.chooseOption(Number(event.key) - 1);

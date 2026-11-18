@@ -151,7 +151,8 @@ async function topicsView(view, exam, params, app) {
             subject.questions ? el("a", { class: "small", href: run(exam.exam, { subject: subject.subject }, "topics") }, `All ${subject.questions} questions of the subject`) : null,
             addButton)),
         [...groups.entries()].map(([group, topics]) => el("div", { class: "topic-group" },
-          group ? el("h3", { class: "group-name", text: group }) : null,
+          // built-in topics always have a group; yours may not, and without a heading they would seem part of the group above
+          el("h3", { class: "group-name", text: group || (topics.every((topic) => topic.mine) ? "Your topics" : "Other topics") }),
           el("ul", { class: "link-grid" }, topics.map((topic) => {
             const link = topic.count
               ? el("a", { href: run(exam.exam, { topic: topic.id, title: topic.name }, "topics"), title: topic.covers || "" },

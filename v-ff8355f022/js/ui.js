@@ -202,6 +202,21 @@ export function practiceHref(exam) {
   return `#/practice/${encodeURIComponent(examInAddress(exam))}`;
 }
 
+// A numerical (NAT) question's answer box takes the focus when the question is shown, so the number can be typed at
+// once, with the caret after any answer already there. Not on touch screens (force: false), where the on-screen
+// keyboard would cover the question. Returns whether the box has the focus.
+export function focusAnswer(input, force) {
+  if (!input || input.disabled || !input.isConnected || (!force && window.matchMedia("(pointer: coarse)").matches)) {
+    return false;
+  }
+  input.focus({ preventScroll: true });
+  input.setSelectionRange(input.value.length, input.value.length);
+  return true;
+}
+
+// A key that starts or continues a number: typed anywhere on a NAT question, it goes into the answer box.
+export const ANSWER_KEY = /^[0-9.,+-]$/;
+
 // An eye drawn as SVG (no inline style, so the page's Content Security Policy allows it); crossed out when "hide"
 export function eyeIcon(crossed) {
   const ns = "http://www.w3.org/2000/svg";
