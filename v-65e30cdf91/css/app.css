@@ -298,7 +298,7 @@ table.data tbody th { font-weight: 500; }
 .upload-form input[type="file"] { padding: 0.35rem 0; }
 .status-chip { display: inline-block; font-size: 0.78rem; font-weight: 700; padding: 0.05rem 0.55rem; border-radius: 999px; border: 1px solid var(--border); }
 .status-chip.new, .status-chip.correct { background: var(--good-soft); border-color: var(--good); color: var(--good); }
-.status-chip.duplicate, .status-chip.unanswered, .status-chip.ungraded, .status-chip.missing { background: var(--surface-2); color: var(--muted); }
+.status-chip.duplicate, .status-chip.unanswered, .status-chip.ungraded, .status-chip.missing, .status-chip.revealed { background: var(--surface-2); color: var(--muted); }
 .status-chip.error, .status-chip.wrong { background: var(--bad-soft); border-color: var(--bad); color: var(--bad); }
 .check-rows { list-style: none; margin: 0.75rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
 .check-row { border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 0.75rem; }
@@ -509,6 +509,12 @@ table.data tbody th { font-weight: 500; }
 
 .summary { max-width: 640px; margin: 1rem auto; text-align: center; }
 .summary .actions { justify-content: center; }
+.session-questions { max-width: 900px; margin: 1rem auto; }
+.session-questions .card-head { align-items: center; }
+button.chip-link { font: inherit; font-size: 0.85rem; cursor: pointer; }
+.chip-count { margin-left: 0.4rem; font-weight: 700; }
+.result-meta { display: contents; }
+.result-preview { flex: 1 1 14rem; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--muted); font-size: 0.9rem; }
 
 /* Question content rendered by qbank-render.js */
 .blocks { line-height: 1.6; }

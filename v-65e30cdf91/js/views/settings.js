@@ -6,6 +6,8 @@ const SHORTCUTS = [
   ["1–9 or A–H", "choose an option"],
   ["Enter", "check the answer"],
   ["← →", "previous and next question"],
+  ["0–9 . -", "on a numerical (NAT) question: type the answer; its box has the focus, and ← → change question while it is empty"],
+  ["Enter in a test", "on a NAT question: save & next"],
 ];
 
 export function renderSettings(view, { app }) {

@@ -2,10 +2,11 @@
 // favourites and notes. It plays any list: a paper, a subject, a year, a search, a saved list, or random questions.
 import { api } from "../api.js";
 import {
-  answerText, blocks, BROWSE_VIEWS, browseHref, clock, el, emptyState, errorBanner, examLabel, examName, external, eyeIcon, hash, incognito,
-  loading, marksText, paperLabel, percent, practiceHref, replace, TYPE_LABELS, TYPE_NAMES, when,
+  ANSWER_KEY, answerText, blocks, BROWSE_VIEWS, browseHref, clock, el, emptyState, errorBanner, examLabel, examName, external, eyeIcon, focusAnswer,
+  hash, incognito, loading, marksText, paperLabel, percent, practiceHref, replace, TYPE_LABELS, TYPE_NAMES, when,
 } from "../ui.js";
 import { entryText, mistakeForm } from "./notebook.js";
+import { reviewItem } from "./review.js";
 
 // topic is a topic id of the exam's topic list (needs exam); site_topic is the source site's own topic label
 const FILTERS = ["exam", "year", "paper", "subject", "topic", "site_topic", "type", "origin", "q", "list"];
@@ -393,6 +394,11 @@ export async function renderRun(view, { params, app }) {
           if (event.key === "Enter") {
             event.preventDefault();
             check();
+          } else if ((event.key === "ArrowLeft" || event.key === "ArrowRight") && event.target.value === "" && settings.shortcuts !== false
+            && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+            // the box has the focus on a NAT question: while it is empty, ← → still change the question
+            event.preventDefault();
+            show(run.index + (event.key === "ArrowRight" ? 1 : -1));
           }
         } })
       : null;
@@ -426,6 +432,7 @@ export async function renderRun(view, { params, app }) {
         numberInput.value = "";
       }
       sync();
+      focusAnswer(numberInput);
     } }, "Clear");
 
     function sync() {
@@ -719,6 +726,8 @@ export async function renderRun(view, { params, app }) {
       }
     };
     card.check = () => check();
+    card.answerInput = numberInput;
+    focusAnswer(numberInput);
   }
 
   function finish() {
@@ -752,20 +761,116 @@ export async function renderRun(view, { params, app }) {
           history.replaceState(null, "", hash("run", again));
           window.dispatchEvent(new HashChangeEvent("hashchange"));
         } }, "Practice again"),
-        el("a", { class: "btn btn-ghost", href: backHref }, `Back to ${backText}`))));
+        el("a", { class: "btn btn-ghost", href: backHref }, `Back to ${backText}`))),
+      sessionQuestions());
+  }
+
+  // The session's questions on its summary: all, the answered ones, or the wrong and not answered ones together
+  // (an answer shown without answering counts as not answered); each row opens to show your answer, the right one
+  // and the solution, and "Practise these" starts a new session with the ones shown.
+  function sessionQuestions() {
+    const statusOf = (result) => {
+      if (!result) {
+        return "unanswered";
+      }
+      if (result.kind !== "answered") {
+        return "revealed";
+      }
+      return result.isCorrect === true ? "correct" : result.isCorrect === false ? "wrong" : "ungraded";
+    };
+    const groups = [
+      ["all", "All", () => true],
+      ["answered", "Answered", (status) => status === "correct" || status === "wrong" || status === "ungraded"],
+      ["redo", "Wrong + not answered", (status) => status === "wrong" || status === "unanswered" || status === "revealed"],
+    ];
+    const fill = (meta, info) => {
+      const preview = (info.preview || (info.content ? info.content.text : "") || "").replace(/\s+/g, " ").trim();
+      replace(meta, el("span", { class: "chip", text: TYPE_LABELS[info.question_type] || info.question_type }),
+        preview ? el("span", { class: "result-preview", text: preview }) : null);
+    };
+    const rows = run.ids.map((id, i) => {
+      const result = run.results.get(id);
+      const status = statusOf(result);
+      const info = (run.cache.get(id) || {}).question || run.items.get(id) || null;
+      const meta = el("span", { class: "result-meta" });
+      if (info) {
+        fill(meta, info);
+      }
+      const node = reviewItem({
+        id, number: `Q${paletteLabel(i)}`, status, selected: status === "revealed" ? null : result ? result.selected : null,
+        attemptId: result ? result.attemptId : undefined, extras: [meta],
+      }, { app, newTab: true, load: (questionId) => getQuestion(questionId).then((data) => data.question) });
+      return { id, status, node, meta, known: Boolean(info) };
+    });
+    const practise = el("a", { class: "btn btn-primary btn-small" });
+    const none = el("p", { class: "muted" });
+    const buttons = groups.map(([key, label, test]) => [key, el("button", { type: "button", class: "chip-link", "aria-pressed": "false", onclick: () => draw(key) },
+      label, el("span", { class: "chip-count", text: String(rows.filter((row) => test(row.status)).length) }))]);
+
+    function draw(key) {
+      const [, label, test] = groups.find(([name]) => name === key);
+      buttons.forEach(([name, button]) => {
+        button.classList.toggle("active", name === key);
+        button.setAttribute("aria-pressed", String(name === key));
+      });
+      const ids = [];
+      rows.forEach((row) => {
+        row.node.hidden = !test(row.status);
+        if (!row.node.hidden) {
+          ids.push(row.id);
+        }
+      });
+      practise.hidden = !ids.length;
+      practise.href = hash("run", { ids: ids.slice(0, 100).join(","), title: `${title} · ${label}` });
+      practise.textContent = ids.length > 100 ? `Practise the first 100 of these ${ids.length}` : `Practise these ${ids.length}`;
+      none.hidden = Boolean(ids.length);
+      none.textContent = key === "redo" ? "None: every question was answered correctly." : "None.";
+    }
+
+    const section = el("section", { class: "card session-questions" },
+      el("div", { class: "card-head" }, el("h2", { text: "Questions" }), practise),
+      el("div", { class: "chips", role: "group", "aria-label": "Show questions" }, buttons.map(([, button]) => button)),
+      none,
+      el("ol", { class: "result-list" }, rows.map((row) => row.node)));
+    draw("all");
+    // a session made from a list of ids knows only the questions it opened: fetch the others' type and text, in turn
+    (async () => {
+      for (const row of rows.filter((item) => !item.known)) {
+        let data;
+        try {
+          data = await getQuestion(row.id);
+        } catch (error) {
+          continue; // the row keeps its number and status
+        }
+        if (!section.isConnected) {
+          return;
+        }
+        fill(row.meta, data.question);
+      }
+    })();
+    return section;
   }
 
   function onKey(event) {
-    if (run.finished || event.altKey || event.ctrlKey || event.metaKey || settings.shortcuts === false) {
+    if (run.finished || event.altKey || event.ctrlKey || event.metaKey) {
       return;
     }
     const target = event.target;
     if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT")) {
       return;
     }
+    // after a click elsewhere on a NAT question, a typed number still goes into its answer box (the key carries on there)
+    if (card.answerInput && ANSWER_KEY.test(event.key) && focusAnswer(card.answerInput, true)) {
+      return;
+    }
+    if (settings.shortcuts === false) {
+      return;
+    }
     if (event.key === "ArrowRight") {
+      event.preventDefault(); // else the key carries on into a NAT answer box the new question focuses
       show(run.index + 1);
     } else if (event.key === "ArrowLeft") {
+      event.preventDefault();
       show(run.index - 1);
     } else if (/^[1-9]$/.test(event.key) && card.chooseOption) {
       card.chooseOption(Number(event.key) - 1);
