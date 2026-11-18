@@ -1,6 +1,7 @@
 // Add questions (CP40D): your own PYQs and mock questions, from an Excel, CSV or JSON file or typed into a form, and the
 // list of the questions you added (view, edit, delete). Uploads only add; a question identical to one already added is
 // skipped. Mock questions need options, the answer, a solution and the reasoning; PYQs need the answer and the year.
+// A topic name the topic list does not have becomes a new topic of the question's subject (CP40E), shown before adding.
 import { api } from "../api.js";
 import {
   answerText, append, blocks, el, emptyState, errorBanner, examLabel, hash, loading, replace, tabs, TYPE_LABELS, when,
@@ -42,6 +43,18 @@ export function questionPreview(question) {
     el("p", {}, "Answer: ", el("b", { text: answerText(question, question.answer) })),
     question.explanation ? el("div", { class: "explanation" }, el("h3", { text: "Solution" }), blocks(question, question.explanation.blocks)) : null,
     question.reasoning ? el("div", { class: "explanation" }, el("h3", { text: "Reasoning" }), blocks(question, question.reasoning.blocks)) : null);
+}
+
+// The topics the file or the form names that the topic list does not have yet (CP40E): they are created on adding.
+function newTopicsBanner(topics, action) {
+  if (!topics || !topics.length) {
+    return null;
+  }
+  return el("div", { class: "banner info" },
+    el("p", { text: `${topics.length === 1 ? "A new topic" : `${topics.length} new topics`} will be added to the topic list when you ${action}:` }),
+    el("ul", {}, topics.map((topic) => el("li", {}, el("b", { text: topic.name }), ` in ${topic.subject}`,
+      topic.questions > 1 ? ` (${topic.questions} questions)` : ""))),
+    el("p", { class: "muted small", text: "Meant an existing topic? Use its name exactly as on Topic wise (case and spacing do not matter), then check again." }));
 }
 
 // -- upload ----------------------------------------------------------------------------------------------------------
@@ -144,6 +157,7 @@ function uploadView(view, app) {
         const ids = done.rows.filter((row) => row.status === "new").map((row) => row.id);
         replace(results, el("section", { class: "card banner-good" },
           el("h2", { text: `Added ${done.added} question${done.added === 1 ? "" : "s"}.` }),
+          (done.new_topics || []).length ? el("p", { text: `New topic${done.new_topics.length === 1 ? "" : "s"} added to the topic list: ${done.new_topics.map((topic) => topic.name).join(", ")}.` }) : null,
           done.counts.duplicate ? el("p", { text: `${done.counts.duplicate} skipped as duplicates.` }) : null,
           done.counts.error ? el("p", { text: `${done.counts.error} still need fixing: correct them in the file and upload it again (the rest will be skipped as duplicates).` }) : null,
           el("div", { class: "actions" },
@@ -163,6 +177,7 @@ function uploadView(view, app) {
         el("div", { class: "tile" }, el("span", { class: "tile-value", text: String(counts.duplicate) }), el("span", { text: "duplicates (skipped)" })),
         el("div", { class: "tile" }, el("span", { class: "tile-value", text: String(counts.error) }), el("span", { text: "need fixing" }))),
       report.warnings.length ? el("div", { class: "banner warn" }, el("ul", {}, report.warnings.map((warning) => el("li", { text: warning })))) : null,
+      newTopicsBanner(report.new_topics, "add these questions"),
       el("div", { class: "actions" }, add, note,
         counts.error ? el("span", { class: "muted small", text: "Rows that need fixing are not added; fix them in the file and upload it again." }) : null),
       el("ol", { class: "check-rows" }, report.rows.map((row) => el("li", { class: `check-row ${row.status}` },
@@ -227,11 +242,14 @@ async function formView(view, app, params) {
   const examId = cells.exam || app.settings.default_exam || (app.exams[0] || {}).exam;
   const subjectSlot = el("span");
   const topicHint = el("datalist", { id: "topic-names" });
+  const loadTopicHints = () => {
+    api.examTopics(fields.exam.value).then((topics) => replace(topicHint,
+      topics.subjects.flatMap((subject) => subject.topics.map((topic) => el("option", { value: topic.name, label: subject.subject })))), () => {});
+  };
   const drawSubjects = () => {
     const subjects = (data.exams[fields.exam.value] || {}).subjects || [];
     subjectSlot.replaceChildren(choice("subject", "Subject", [["", "Choose…"], ...subjects.map((name) => [name, name])], cells.subject || ""));
-    api.examTopics(fields.exam.value).then((topics) => replace(topicHint,
-      topics.subjects.flatMap((subject) => subject.topics.map((topic) => el("option", { value: topic.name, label: subject.subject })))), () => {});
+    loadTopicHints();
   };
   const optionsBox = el("div", { class: "form-options" }, "ABCDEF".split("").map((label) => area(`option_${label.toLowerCase()}`, `Option ${label}`, 2)));
   const check = el("div", { class: "form-check" });
@@ -243,7 +261,8 @@ async function formView(view, app, params) {
       text("year", "Year (PYQ)", { inputmode: "numeric", placeholder: "e.g. 2027" }),
       text("question_number", "Question number", { inputmode: "numeric", placeholder: "next free" }),
       subjectSlot,
-      text("topics", "Topics (separated by ;)", { list: "topic-names", placeholder: "e.g. Stacks; Queues and deques" }),
+      text("topics", "Topics (separated by ;)", { list: "topic-names", placeholder: "e.g. Stacks; a new name adds a topic",
+        title: "Pick names from the list; a name the list does not have becomes a new topic of the question's subject" }),
       choice("type", "Type", [["MCQ", "MCQ: one correct option"], ["MSQ", "MSQ: one or more"], ["NAT", "NAT: a number"]], cells.type || "MCQ"),
       choice("marks", "Marks", [["1", "1"], ["2", "2"]], cells.marks || "1"),
       text("negative_marks", "Negative marks", { inputmode: "decimal", placeholder: "GATE rule" }),
@@ -293,6 +312,7 @@ async function formView(view, app, params) {
       result.errors && result.errors.length ? el("div", { class: "banner bad" }, el("p", { text: "Fix these first:" }),
         el("ul", {}, result.errors.map((error) => el("li", { text: error })))) : null,
       result.duplicate_of ? el("div", { class: "banner warn" }, el("p", { text: `This question is already added: ${result.duplicate_of}.` })) : null,
+      newTopicsBanner(result.new_topics, editing ? "save" : "add this question"),
       result.warnings && result.warnings.length ? el("div", { class: "banner warn" }, el("ul", {}, result.warnings.map((warning) => el("li", { text: warning })))) : null,
       result.preview ? el("section", { class: "card" }, el("h2", { text: "Preview" }), questionPreview(result.preview)) : null);
   }
@@ -310,10 +330,14 @@ async function formView(view, app, params) {
     event.preventDefault();
     replace(check, loading(editing ? "Saving…" : "Adding…"));
     try {
-      const saved = editing ? await api.updateQuestion(editing, values()) : await api.addQuestion(values());
+      const result = editing ? await api.updateQuestion(editing, values()) : await api.addQuestion(values());
+      const saved = result.question;
+      const created = result.new_topics || [];
       await app.refreshExams();
+      loadTopicHints();
       replace(check, el("div", { class: "banner banner-good" },
         el("p", { text: editing ? "Saved." : `Added as ${saved.paper} Q${saved.question_number}.` }),
+        created.length ? el("p", { text: `New topic${created.length === 1 ? "" : "s"} added to the topic list: ${created.map((topic) => topic.name).join(", ")}.` }) : null,
         el("div", { class: "actions" },
           el("a", { class: "btn btn-primary", href: hash("run", { id: saved.id }) }, "Open it"),
           editing ? null : el("button", { class: "btn", type: "button", onclick: () => {
