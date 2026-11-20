@@ -319,6 +319,19 @@ table.data tbody th { font-weight: 500; }
 .form-check { margin-top: 0.75rem; }
 .mine-actions { margin: 0 0 0.75rem; }
 .mine-row .qlist-head input { width: 1.05rem; height: 1.05rem; accent-color: var(--accent); }
+/* My questions by topic, History, removing (CP40F) */
+.mine-row .row-tools { margin-left: auto; display: inline-flex; flex-wrap: wrap; gap: 0.25rem; }
+.mine-full:not([hidden]) { margin-top: 0.5rem; }
+.list-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 1rem; margin: 0.25rem 0 0.75rem; }
+.list-head h2 { margin: 0; }
+.batch-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin: 0 0 0.75rem; }
+.batch-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+.batch-row { margin: 0; }
+.batch-counts { margin: 0.4rem 0 0.2rem; }
+.removal { margin-top: 0.6rem; }
+.removal ul { margin: 0.2rem 0 0.5rem; }
+.btn-danger-solid { background: var(--bad); border-color: var(--bad); color: var(--surface); }
+.btn-danger-solid:hover:not(:disabled) { filter: brightness(1.08); }
 .test-options .option-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; padding: 0.35rem 0; }
 .test-options .option-name { min-width: 6rem; font-weight: 600; }
 .test-options input[type="number"] { width: 6rem; font: inherit; padding: 0.4rem 0.5rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
@@ -366,6 +379,28 @@ table.data tbody th { font-weight: 500; }
 .result-marks { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 3rem; }
 .result-body { margin-top: 0.6rem; }
 .options.review .option { cursor: default; }
+
+/* Questions in several subjects, groups of topics (CP40G) */
+.also-in { position: relative; }
+.also-in summary { list-style: none; display: flex; align-items: center; gap: 0.5rem; min-height: 2.4rem; padding: 0.45rem 0.6rem; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--surface); color: var(--text); font-size: 0.95rem; cursor: pointer; }
+.also-in summary::-webkit-details-marker { display: none; }
+.also-in summary::after { content: "▾"; margin-left: auto; color: var(--muted); }
+.also-in[open] summary { border-color: var(--accent); }
+.also-list { position: absolute; z-index: 20; top: calc(100% + 0.25rem); left: 0; right: 0; max-height: 18rem; overflow-y: auto; padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--surface); box-shadow: var(--shadow); color: var(--text); }
+.also-list p { margin: 0 0 0.35rem; }
+.group-panel { margin: 0.75rem 0; padding: 0.8rem 1rem; border: 1px solid var(--accent); border-radius: var(--radius); background: var(--accent-soft); }
+.group-panel h3 { margin: 0 0 0.25rem; font-size: 1rem; }
+.group-panel > p { margin: 0 0 0.25rem; }
+.group-new { margin: 0.6rem 0 0; padding: 0.6rem 0.8rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.group-new legend { float: left; width: 100%; padding: 0; margin: 0 0 0.3rem; font-weight: 400; }
+.group-new legend + * { clear: both; }
+.group-new p { margin: 0 0 0.3rem; }
+.group-choices { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 1.25rem; margin-top: 0.4rem; }
+.group-choice { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; cursor: pointer; }
+.group-choice input { width: 1.05rem; height: 1.05rem; margin: 0; accent-color: var(--accent); }
+.group-choice select { min-height: 2rem; padding: 0.2rem 0.5rem; }
 
 /* Error notebook (CP40A) */
 .reason-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.35rem 0; }

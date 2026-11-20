@@ -381,6 +381,9 @@ function resultView(view, test, app, timeUp) {
     el("div", { class: "page-head" }, el("div", {}, el("a", { class: "back", href: hash("tests", { exam: test.exam }) }, "← Tests"),
       el("h1", { text: testTitle(test) }))),
     timeUp ? el("div", { class: "banner warn", role: "status" }, el("p", { text: "Time was up, so your answers were submitted." })) : null,
+    result.removed ? el("div", { class: "banner info", role: "status" }, el("p", {
+      text: `${result.removed} of this test's questions ${result.removed === 1 ? "was" : "were"} removed afterwards, with the questions you added and then `
+        + `removed; the marks are for the ${result.questions.length} left.` })) : null,
     el("section", { class: "card" }, el("div", { class: "tiles" },
       el("div", { class: "tile" }, el("span", { class: "tile-value", text: `${result.score} / ${result.max_score}` }), el("span", { text: "marks" })),
       el("div", { class: "tile" }, el("span", { class: "tile-value", text: String(result.correct) }), el("span", { text: "correct" })),

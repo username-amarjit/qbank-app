@@ -113,13 +113,18 @@ export const api = {
   saveSettings: (values) => call("PUT", "/api/settings", values).then((data) => data.settings),
   // Your own questions (CP40D)
   authoredFormat: () => call("GET", "/api/authored/format"),
-  uploadQuestions: (file, defaults, dryRun) => call("POST", "/api/authored/upload", { file, defaults, dry_run: dryRun }),
-  checkQuestion: (cells, id) => call("POST", "/api/authored/check", { cells, id }),
-  addQuestion: (cells) => call("POST", "/api/authored", { cells }),
+  // groupChoices (CP40G): what to do with each new group, [{exam, subject, group, action: create|existing|none, use}]
+  uploadQuestions: (file, defaults, dryRun, groupChoices) => call("POST", "/api/authored/upload",
+    { file, defaults, dry_run: dryRun, group_choices: groupChoices || [] }),
+  checkQuestion: (cells, id, groupChoices) => call("POST", "/api/authored/check", { cells, id, group_choices: groupChoices || [] }),
+  addQuestion: (cells, groupChoices) => call("POST", "/api/authored", { cells, group_choices: groupChoices || [] }),
   myQuestions: (params) => call("GET", "/api/authored" + query(params)),
   myQuestion: (id) => call("GET", `/api/authored/${encodeURIComponent(id)}`),
-  updateQuestion: (id, cells) => call("PUT", `/api/authored/${encodeURIComponent(id)}`, { cells }),
-  deleteQuestions: (ids) => call("POST", "/api/authored/delete", { ids }).then((data) => data.deleted),
+  myTopics: (params) => call("GET", "/api/authored/topics" + query(params)),
+  myBatches: (params) => call("GET", "/api/authored/batches" + query(params)).then((data) => data.batches),
+  // {ids} or {batch, exam}; dry_run: true says what would go (CP40F)
+  removeQuestions: (body) => call("POST", "/api/authored/delete", body),
+  updateQuestion: (id, cells, groupChoices) => call("PUT", `/api/authored/${encodeURIComponent(id)}`, { cells, group_choices: groupChoices || [] }),
   // Tests (CP40D)
   blueprint: (exam, origins) => call("GET", "/api/tests/blueprint" + query({ exam, origins: origins.join(",") })),
   createTest: (body) => call("POST", "/api/tests", body).then((data) => data.test),
