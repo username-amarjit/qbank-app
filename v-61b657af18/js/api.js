@@ -118,8 +118,11 @@ export const api = {
   addQuestion: (cells) => call("POST", "/api/authored", { cells }),
   myQuestions: (params) => call("GET", "/api/authored" + query(params)),
   myQuestion: (id) => call("GET", `/api/authored/${encodeURIComponent(id)}`),
+  myTopics: (params) => call("GET", "/api/authored/topics" + query(params)),
+  myBatches: (params) => call("GET", "/api/authored/batches" + query(params)).then((data) => data.batches),
+  // {ids} or {batch, exam}; dry_run: true says what would go (CP40F)
+  removeQuestions: (body) => call("POST", "/api/authored/delete", body),
   updateQuestion: (id, cells) => call("PUT", `/api/authored/${encodeURIComponent(id)}`, { cells }),
-  deleteQuestions: (ids) => call("POST", "/api/authored/delete", { ids }).then((data) => data.deleted),
   // Tests (CP40D)
   blueprint: (exam, origins) => call("GET", "/api/tests/blueprint" + query({ exam, origins: origins.join(",") })),
   createTest: (body) => call("POST", "/api/tests", body).then((data) => data.test),

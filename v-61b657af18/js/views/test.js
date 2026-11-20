@@ -1,8 +1,8 @@
 // Taking a test (CP40D), GATE style: answers hidden until you submit, a countdown that submits at zero, mark for review,
 // a palette of question states; then the result with marks per subject and every question's solution and reasoning.
 import { api } from "../api.js";
-import { ANSWER_KEY, answerText, append, blocks, clock, el, emptyState, errorBanner, focusAnswer, hash, loading, percent, replace, TYPE_LABELS } from "../ui.js";
-import { mistakeForm } from "./notebook.js";
+import { ANSWER_KEY, append, blocks, clock, el, emptyState, errorBanner, focusAnswer, hash, loading, percent, replace, TYPE_LABELS } from "../ui.js";
+import { reviewItem } from "./review.js";
 import { testTitle } from "./tests.js";
 
 const SAVE_DELAY = 1200;
@@ -376,12 +376,14 @@ function resultView(view, test, app, timeUp) {
   const result = test.result;
   const config = test.config || {};
   const wrongOrSkipped = result.questions.filter((entry) => entry.status === "wrong" || entry.status === "unanswered").map((entry) => entry.id);
-  const statusText = { correct: "Correct", wrong: "Wrong", unanswered: "Not answered", ungraded: "No answer key", missing: "No longer in the bank" };
   const allocation = config.allocation;
   append(view, [
     el("div", { class: "page-head" }, el("div", {}, el("a", { class: "back", href: hash("tests", { exam: test.exam }) }, "← Tests"),
       el("h1", { text: testTitle(test) }))),
     timeUp ? el("div", { class: "banner warn", role: "status" }, el("p", { text: "Time was up, so your answers were submitted." })) : null,
+    result.removed ? el("div", { class: "banner info", role: "status" }, el("p", {
+      text: `${result.removed} of this test's questions ${result.removed === 1 ? "was" : "were"} removed afterwards, with the questions you added and then `
+        + `removed; the marks are for the ${result.questions.length} left.` })) : null,
     el("section", { class: "card" }, el("div", { class: "tiles" },
       el("div", { class: "tile" }, el("span", { class: "tile-value", text: `${result.score} / ${result.max_score}` }), el("span", { text: "marks" })),
       el("div", { class: "tile" }, el("span", { class: "tile-value", text: String(result.correct) }), el("span", { text: "correct" })),
@@ -406,52 +408,13 @@ function resultView(view, test, app, timeUp) {
         el("tbody", {}, allocation.subjects.map((entry) => el("tr", {}, el("th", { scope: "row", text: entry.subject }),
           el("td", { class: "num", text: String(entry.marks) }), el("td", { class: "num", text: String(entry.target) }))))))) : null,
     el("section", { class: "card" }, el("h2", { text: "Questions" }),
-      el("ol", { class: "result-list" }, result.questions.map((entry, i) => {
-        const details = el("details", { class: `result-item ${entry.status}` },
-          el("summary", {},
-            el("span", { class: "result-number", text: `Q${i + 1}` }),
-            el("span", { class: `status-chip ${entry.status}`, text: statusText[entry.status] || entry.status }),
-            el("span", { class: "result-marks", text: entry.awarded > 0 ? `+${entry.awarded}` : entry.awarded < 0 ? `${Number(entry.awarded).toFixed(2)}` : "0" }),
-            el("span", { class: "muted small", text: entry.subject || "" }),
-            entry.marked ? el("span", { class: "chip", text: "marked for review" }) : null));
-        details.addEventListener("toggle", async () => {
-          if (!details.open || details.dataset.loaded) {
-            return;
-          }
-          details.dataset.loaded = "1";
-          const body = el("div", { class: "result-body" }, loading());
-          details.appendChild(body);
-          try {
-            const question = (await api.question(entry.id)).question;
-            const right = new Set((question.answer || {}).correct_labels || []);
-            const mine = new Set(Array.isArray(entry.selected) ? entry.selected : []);
-            const notebook = el("div");
-            replace(body,
-              el("div", { class: "stem" }, blocks(question, question.content.blocks)),
-              question.options.length ? el("div", { class: "options review" }, question.options.map((option) => el("div", {
-                class: `option${right.has(option.label) ? " correct" : ""}${mine.has(option.label) && !right.has(option.label) ? " wrong" : ""}${mine.has(option.label) ? " selected" : ""}`,
-              }, el("span", { class: "option-label", text: option.label }), blocks(question, option.blocks)))) : null,
-              el("p", {}, "Your answer: ", el("b", { text: entry.selected === null || entry.selected === undefined ? "not answered"
-                : Array.isArray(entry.selected) ? entry.selected.join(", ") : String(entry.selected) }),
-              " · Correct answer: ", el("b", { text: answerText(question, question.answer) })),
-              question.explanation && question.explanation.blocks.length ? el("div", { class: "explanation" }, el("h3", { text: "Solution" }), blocks(question, question.explanation.blocks))
-                : el("p", { class: "muted", text: "No solution was given with this question." }),
-              question.reasoning ? el("div", { class: "explanation" }, el("h3", { text: "Reasoning" }), blocks(question, question.reasoning.blocks)) : null,
-              el("div", { class: "actions" },
-                el("a", { class: "btn btn-ghost btn-small", href: hash("run", { id: entry.id }) }, "Open in practice"),
-                entry.status === "wrong" || entry.status === "unanswered" ? el("button", { class: "btn btn-small", type: "button", onclick: () => {
-                  const form = mistakeForm({ questionId: entry.id, attemptId: entry.attempt_id, onSaved: () => replace(notebook, el("p", { class: "muted", text: "Added to your error notebook." })),
-                    onCancel: () => replace(notebook) });
-                  replace(notebook, form);
-                  form.focusFirst();
-                } }, "Add to error notebook") : null),
-              notebook);
-          } catch (error) {
-            replace(body, errorBanner(error, app.reconnect));
-          }
-        });
-        return el("li", {}, details);
-      })))]);
+      el("ol", { class: "result-list" }, result.questions.map((entry, i) => reviewItem({
+        id: entry.id, number: `Q${i + 1}`, status: entry.status, selected: entry.selected, attemptId: entry.attempt_id,
+        extras: [
+          el("span", { class: "result-marks", text: entry.awarded > 0 ? `+${entry.awarded}` : entry.awarded < 0 ? `${Number(entry.awarded).toFixed(2)}` : "0" }),
+          el("span", { class: "muted small", text: entry.subject || "" }),
+          entry.marked ? el("span", { class: "chip", text: "marked for review" }) : null],
+      }, { app }))))]);
 }
 
 export async function renderTest(view, { args, app }) {

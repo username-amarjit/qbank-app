@@ -311,9 +311,11 @@ async function home(view, app, exam) {
         window.dispatchEvent(new HashChangeEvent("hashchange"));
       });
       const result = test.state === "submitted" ? `${test.score} / ${test.max_score}` : { new: "Not started", running: "In progress", time_up: "Time up, not submitted" }[test.state];
+      const removed = (test.config || {}).removed_questions;
       return el("tr", {},
         el("th", { scope: "row" }, el("a", { href: `#/test/${test.id}` }, testTitle(test))),
-        el("td", { class: "num", text: String(test.question_count) }),
+        el("td", { class: "num", text: String(test.question_count), title: removed ? `${removed} removed with questions you removed` : "" },
+          removed ? el("span", { class: "muted small", text: ` (−${removed})` }) : null),
         el("td", { class: "num", text: test.minutes ? `${test.minutes} min` : "No limit" }),
         el("td", { text: when(test.created_at) }),
         el("td", { text: result }),

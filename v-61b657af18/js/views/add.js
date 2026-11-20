@@ -1,13 +1,14 @@
-// Add questions (CP40D): your own PYQs and mock questions, from an Excel, CSV or JSON file or typed into a form, and the
-// list of the questions you added (view, edit, delete). Uploads only add; a question identical to one already added is
-// skipped. Mock questions need options, the answer, a solution and the reasoning; PYQs need the answer and the year.
+// Add questions (CP40D): your own PYQs and mock questions, from an Excel, CSV or JSON file or typed into a form; My
+// questions and History are in mine.js (CP40F). Uploads only add; a question identical to one already added is skipped.
+// Mock questions need options, the answer, a solution and the reasoning; PYQs need the answer and the year.
 // A topic name the topic list does not have becomes a new topic of the question's subject (CP40E), shown before adding.
 import { api } from "../api.js";
 import {
-  answerText, append, blocks, el, emptyState, errorBanner, examLabel, hash, loading, replace, tabs, TYPE_LABELS, when,
+  append, el, errorBanner, examLabel, hash, loading, replace, tabs,
 } from "../ui.js";
+import { historyView, mineView, questionPreview } from "./mine.js";
 
-const SECTIONS = [["", "Upload a file"], ["form", "Type a question"], ["mine", "My questions"]];
+const SECTIONS = [["", "Upload a file"], ["form", "Type a question"], ["mine", "My questions"], ["history", "History"]];
 const MAX_FILE = 6 * 1024 * 1024;
 const BANKS = [["MOCK", "Mock questions"], ["PYQ", "Previous year questions (PYQ)"]];
 let format = null; // the columns and each exam's subjects, from the worker; loaded once
@@ -28,21 +29,6 @@ function save(blob, name) {
 
 function examOptions(app, current) {
   return app.exams.map((exam) => el("option", { value: exam.exam, text: examLabel(exam.exam), selected: exam.exam === current }));
-}
-
-// A question as it will look (the preview the worker returns, or a stored question)
-export function questionPreview(question) {
-  const meta = [question.origin === "mock" ? "Mock" : "PYQ", question.paper && `${question.paper} · Q${question.question_number}`, question.subject,
-    TYPE_LABELS[question.question_type], `${question.marks.positive} mark${question.marks.positive === 1 ? "" : "s"}`].filter(Boolean);
-  return el("div", { class: "qpreview" },
-    el("p", { class: "muted small", text: meta.join(" · ") + (question.topics && question.topics.length ? ` · Topics: ${question.topics.join(", ")}` : "") }),
-    el("div", { class: "stem" }, blocks(question, question.content.blocks)),
-    question.options.length ? el("ol", { class: "preview-options" }, question.options.map((option) =>
-      el("li", { class: (question.answer.correct_labels || []).includes(option.label) ? "is-answer" : "" },
-        el("span", { class: "option-label", text: option.label }), blocks(question, option.blocks)))) : null,
-    el("p", {}, "Answer: ", el("b", { text: answerText(question, question.answer) })),
-    question.explanation ? el("div", { class: "explanation" }, el("h3", { text: "Solution" }), blocks(question, question.explanation.blocks)) : null,
-    question.reasoning ? el("div", { class: "explanation" }, el("h3", { text: "Reasoning" }), blocks(question, question.reasoning.blocks)) : null);
 }
 
 // The topics the file or the form names that the topic list does not have yet (CP40E): they are created on adding.
@@ -160,9 +146,14 @@ function uploadView(view, app) {
           (done.new_topics || []).length ? el("p", { text: `New topic${done.new_topics.length === 1 ? "" : "s"} added to the topic list: ${done.new_topics.map((topic) => topic.name).join(", ")}.` }) : null,
           done.counts.duplicate ? el("p", { text: `${done.counts.duplicate} skipped as duplicates.` }) : null,
           done.counts.error ? el("p", { text: `${done.counts.error} still need fixing: correct them in the file and upload it again (the rest will be skipped as duplicates).` }) : null,
+          (done.batches || []).length ? el("p", { class: "muted", text: `Kept in History as the batch “${done.batches.map((batch) => batch.name).join("”, “")}”: `
+            + "remove the whole upload there if it turns out wrong." }) : null,
           el("div", { class: "actions" },
             ids.length ? el("a", { class: "btn btn-primary", href: hash("run", { ids: ids.slice(0, 100).join(","), title: "Questions just added" }) }, "Practise them") : null,
-            el("a", { class: "btn", href: "#/add/mine" }, "My questions"))));
+            (done.batches || []).length === 1 ? el("a", { class: "btn", href: hash("add/mine", { exam: done.batches[0].exam, batch: done.batches[0].id, view: "list" }) },
+              "See this batch") : null,
+            el("a", { class: "btn", href: "#/add/mine" }, "My questions"),
+            el("a", { class: "btn btn-ghost", href: "#/add/history" }, "History"))));
         input.value = "";
         check.disabled = true;
       } catch (error) {
@@ -355,101 +346,6 @@ async function formView(view, app, params) {
   append(view, [editing ? el("p", { class: "muted", text: "Changing a question keeps your answers, notes and topics with it." }) : null, form]);
 }
 
-// -- my questions ----------------------------------------------------------------------------------------------------
-async function mineView(view, app, params) {
-  const values = { exam: params.get("exam") || "", bank: params.get("bank") || "", q: params.get("q") || "" };
-  const form = el("form", { class: "card search-form" },
-    el("label", { class: "field" }, el("span", { text: "Exam" }),
-      el("select", { name: "exam" }, el("option", { value: "", text: "All exams" }), examOptions(app, values.exam))),
-    el("label", { class: "field" }, el("span", { text: "Bank" }),
-      el("select", { name: "bank" }, [["", "Mock and PYQ"], ...BANKS].map(([value, text]) => el("option", { value, text, selected: value === values.bank })))),
-    el("label", { class: "field grow" }, el("span", { text: "Words" }), el("input", { type: "search", name: "q", value: values.q, autocomplete: "off" })),
-    el("button", { class: "btn btn-primary", type: "submit" }, "Show"));
-  form.addEventListener("submit", (event) => {
-    event.preventDefault();
-    location.hash = hash("add/mine", Object.fromEntries(new FormData(form)));
-  });
-  form.querySelectorAll("select").forEach((node) => node.addEventListener("change", () => form.requestSubmit()));
-  const body = el("div", {}, loading());
-  view.append(form, body);
-  let found;
-  try {
-    found = await api.myQuestions(values);
-  } catch (error) {
-    body.replaceChildren(errorBanner(error, app.reconnect));
-    return;
-  }
-  if (!view.isConnected) {
-    return;
-  }
-  if (!found.total) {
-    replace(body, emptyState(values.exam || values.bank || values.q ? "None of your questions match." : "You have not added any questions yet.",
-      el("a", { class: "btn btn-primary", href: "#/add" }, "Upload a file")));
-    return;
-  }
-  const chosen = new Set();
-  const count = el("span", { class: "muted", role: "status" });
-  const remove = el("button", { class: "btn", type: "button", disabled: true }, "Delete selected");
-  let confirm = null;
-  const all = el("input", { type: "checkbox", "aria-label": "Select all" });
-  const sync = () => {
-    count.textContent = `${found.total} question${found.total === 1 ? "" : "s"}${chosen.size ? `, ${chosen.size} selected` : ""}`;
-    remove.disabled = !chosen.size;
-    remove.textContent = "Delete selected";
-    all.checked = chosen.size === found.questions.length;
-    clearTimeout(confirm);
-    confirm = null;
-  };
-  all.addEventListener("change", () => {
-    found.questions.forEach((item) => (all.checked ? chosen.add(item.id) : chosen.delete(item.id)));
-    body.querySelectorAll(".mine-row input[type=checkbox]").forEach((box) => { box.checked = all.checked; });
-    sync();
-  });
-  remove.addEventListener("click", async () => {
-    if (!confirm) {
-      remove.textContent = `Delete ${chosen.size}? Click again`;
-      confirm = setTimeout(sync, 4000);
-      return;
-    }
-    clearTimeout(confirm);
-    remove.disabled = true;
-    try {
-      await api.deleteQuestions([...chosen]);
-      await app.refreshExams();
-      window.dispatchEvent(new HashChangeEvent("hashchange"));
-    } catch (error) {
-      body.prepend(errorBanner(error, app.reconnect));
-      sync();
-    }
-  });
-  const ids = found.questions.map((item) => item.id);
-  replace(body,
-    el("div", { class: "actions mine-actions" }, el("label", { class: "check" }, all, "All"), count, remove,
-      el("a", { class: "btn btn-primary", href: hash("run", { ids: ids.slice(0, 100).join(","), title: "My questions" }) },
-        ids.length > 100 ? "Practise the first 100" : "Practise these")),
-    el("ol", { class: "qlist" }, found.questions.map((item) => {
-      const box = el("input", { type: "checkbox", "aria-label": `Select ${item.paper} Q${item.question_number}` });
-      box.addEventListener("change", () => {
-        if (box.checked) {
-          chosen.add(item.id);
-        } else {
-          chosen.delete(item.id);
-        }
-        sync();
-      });
-      return el("li", { class: "qlist-item mine-row" },
-        el("div", { class: "qlist-head" }, box,
-          el("a", { href: hash("run", { id: item.id }) }, el("strong", { text: `${item.paper} · Q${item.question_number}` })),
-          el("span", { class: `chip ${item.bank === "MOCK" ? "chip-mock" : ""}`, text: item.bank }),
-          el("span", { class: "chip", text: TYPE_LABELS[item.question_type] || item.question_type }),
-          el("span", { class: "muted", text: [examLabel(item.exam), item.subject, item.topics.join(", ")].filter(Boolean).join(" · ") }),
-          el("a", { class: "btn btn-ghost btn-small", href: hash("add/form", { id: item.id }) }, "Edit")),
-        el("p", { class: "qlist-preview", text: item.preview }),
-        el("p", { class: "muted small", text: `Added ${when(item.created_at)}${item.updated_at !== item.created_at ? ` · changed ${when(item.updated_at)}` : ""}` }));
-    })));
-  sync();
-}
-
 export async function renderAdd(view, { args, params, app }) {
   const section = SECTIONS.some(([key]) => key === (args[0] || "")) ? args[0] || "" : "";
   const body = el("div");
@@ -463,6 +359,8 @@ export async function renderAdd(view, { args, params, app }) {
     await formView(body, app, params);
   } else if (section === "mine") {
     await mineView(body, app, params);
+  } else if (section === "history") {
+    await historyView(body, app, params);
   } else {
     uploadView(body, app);
   }
