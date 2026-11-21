@@ -382,6 +382,16 @@ export function loading(text) {
   return el("div", { class: "loading", role: "status" }, el("span", { class: "spinner", "aria-hidden": "true" }), text || "Loading…");
 }
 
+// Saves a file the worker sent (the sample upload file, an export) under its name
+export function saveFile(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const anchor = el("a", { href: url, download: name, hidden: true });
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
 export function tabs(items, current) {
   return el("nav", { class: "tabs", "aria-label": "Sections" },
     items.map(([href, text, key]) => el("a", { href, class: key === current ? "active" : "", "aria-current": key === current ? "page" : false }, text)));

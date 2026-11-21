@@ -380,6 +380,31 @@ table.data tbody th { font-weight: 500; }
 .result-body { margin-top: 0.6rem; }
 .options.review .option { cursor: default; }
 
+/* Questions in several subjects, groups of topics (CP40G) */
+.also-in { position: relative; }
+.also-in summary { list-style: none; display: flex; align-items: center; gap: 0.5rem; min-height: 2.4rem; padding: 0.45rem 0.6rem; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--surface); color: var(--text); font-size: 0.95rem; cursor: pointer; }
+.also-in summary::-webkit-details-marker { display: none; }
+.also-in summary::after { content: "▾"; margin-left: auto; color: var(--muted); }
+.also-in[open] summary { border-color: var(--accent); }
+.also-list { position: absolute; z-index: 20; top: calc(100% + 0.25rem); left: 0; right: 0; max-height: 18rem; overflow-y: auto; padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--surface); box-shadow: var(--shadow); color: var(--text); }
+.also-list p { margin: 0 0 0.35rem; }
+.group-panel { margin: 0.75rem 0; padding: 0.8rem 1rem; border: 1px solid var(--accent); border-radius: var(--radius); background: var(--accent-soft); }
+.group-panel h3 { margin: 0 0 0.25rem; font-size: 1rem; }
+.group-panel > p { margin: 0 0 0.25rem; }
+.group-new { margin: 0.6rem 0 0; padding: 0.6rem 0.8rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.group-new legend { float: left; width: 100%; padding: 0; margin: 0 0 0.3rem; font-weight: 400; }
+.group-new legend + * { clear: both; }
+.group-new p { margin: 0 0 0.3rem; }
+.group-choices { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 1.25rem; margin-top: 0.4rem; }
+.group-choice { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; cursor: pointer; }
+.group-choice input { width: 1.05rem; height: 1.05rem; margin: 0; accent-color: var(--accent); }
+.group-choice select { min-height: 2rem; padding: 0.2rem 0.5rem; }
+
+/* Export (CP40H) */
+.export-options > p { margin: 0 0 0.6rem; max-width: 80ch; }
+
 /* Error notebook (CP40A) */
 .reason-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.35rem 0; }
 .reason-chip { font-size: 0.78rem; font-weight: 600; padding: 0.05rem 0.55rem; border-radius: 999px; background: var(--warn-soft); color: var(--text); border: 1px solid var(--warn); }

@@ -113,16 +113,18 @@ export const api = {
   saveSettings: (values) => call("PUT", "/api/settings", values).then((data) => data.settings),
   // Your own questions (CP40D)
   authoredFormat: () => call("GET", "/api/authored/format"),
-  uploadQuestions: (file, defaults, dryRun) => call("POST", "/api/authored/upload", { file, defaults, dry_run: dryRun }),
-  checkQuestion: (cells, id) => call("POST", "/api/authored/check", { cells, id }),
-  addQuestion: (cells) => call("POST", "/api/authored", { cells }),
+  // groupChoices (CP40G): what to do with each new group, [{exam, subject, group, action: create|existing|none, use}]
+  uploadQuestions: (file, defaults, dryRun, groupChoices) => call("POST", "/api/authored/upload",
+    { file, defaults, dry_run: dryRun, group_choices: groupChoices || [] }),
+  checkQuestion: (cells, id, groupChoices) => call("POST", "/api/authored/check", { cells, id, group_choices: groupChoices || [] }),
+  addQuestion: (cells, groupChoices) => call("POST", "/api/authored", { cells, group_choices: groupChoices || [] }),
   myQuestions: (params) => call("GET", "/api/authored" + query(params)),
   myQuestion: (id) => call("GET", `/api/authored/${encodeURIComponent(id)}`),
   myTopics: (params) => call("GET", "/api/authored/topics" + query(params)),
   myBatches: (params) => call("GET", "/api/authored/batches" + query(params)).then((data) => data.batches),
   // {ids} or {batch, exam}; dry_run: true says what would go (CP40F)
   removeQuestions: (body) => call("POST", "/api/authored/delete", body),
-  updateQuestion: (id, cells) => call("PUT", `/api/authored/${encodeURIComponent(id)}`, { cells }),
+  updateQuestion: (id, cells, groupChoices) => call("PUT", `/api/authored/${encodeURIComponent(id)}`, { cells, group_choices: groupChoices || [] }),
   // Tests (CP40D)
   blueprint: (exam, origins) => call("GET", "/api/tests/blueprint" + query({ exam, origins: origins.join(",") })),
   createTest: (body) => call("POST", "/api/tests", body).then((data) => data.test),
@@ -132,18 +134,30 @@ export const api = {
   saveResponses: (id, responses) => call("PUT", `/api/tests/${encodeURIComponent(id)}/responses`, { responses }),
   submitTest: (id, responses) => call("POST", `/api/tests/${encodeURIComponent(id)}/submit`, { responses }).then((data) => data.test),
   deleteTest: (id) => call("DELETE", `/api/tests/${encodeURIComponent(id)}`),
-  // A file from the worker (the sample upload file), as a blob and its name
-  download: async (path) => {
+  // Export (CP40H): {exam, origins, by: subjects|topics|all, subjects?, topics?}; how many first, then the file
+  exportCount: (body) => call("POST", "/api/export", { ...body, count_only: true }),
+  // A file from the worker (the sample upload file, an export), as a blob and its name; with a body it is a POST
+  download: async (path, body, fallbackName) => {
+    const init = servedByWorker ? { cache: "no-store" } : { mode: "cors", credentials: "omit", cache: "no-store", targetAddressSpace: "loopback" };
+    if (body !== undefined) {
+      Object.assign(init, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    }
     let response;
     try {
-      response = await fetch(WORKER + path, servedByWorker ? { cache: "no-store" } : { mode: "cors", credentials: "omit", cache: "no-store", targetAddressSpace: "loopback" });
+      response = await fetch(WORKER + path, init);
     } catch (error) {
       throw new WorkerUnreachable(`The QBank worker did not answer at ${WORKER}.`);
     }
     if (!response.ok) {
-      throw new WorkerError(response.status, "download", `The worker answered ${response.status}.`);
+      let problem = null;
+      try {
+        problem = (await response.json()).error;
+      } catch (error) {
+        problem = null;
+      }
+      throw new WorkerError(response.status, (problem && problem.code) || "download", (problem && problem.message) || `The worker answered ${response.status}.`);
     }
-    const name = ((response.headers.get("Content-Disposition") || "").match(/filename="([^"]+)"/) || [])[1] || "download";
+    const name = ((response.headers.get("Content-Disposition") || "").match(/filename="([^"]+)"/) || [])[1] || fallbackName || "download";
     return { blob: await response.blob(), name };
   },
   assetUrl: (exam, asset) => `${WORKER}/assets/${encodeURIComponent(exam)}/${asset.path}`,

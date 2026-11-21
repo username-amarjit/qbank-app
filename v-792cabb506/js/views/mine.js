@@ -15,9 +15,13 @@ let selection = { key: "", ids: new Set() }; // ticks, kept across the pages of 
 
 const plural = (count, one, many) => `${count} ${count === 1 ? one : many || `${one}s`}`;
 
+// A question's subjects, the main one first (CP40G: a question of yours may be in several)
+export const subjectsText = (subjects, subject) => ((subjects && subjects.length ? subjects : [subject]).filter(Boolean).join(" + "));
+
 // A question as it will look (the preview the worker returns, or a stored question)
 export function questionPreview(question) {
-  const meta = [question.origin === "mock" ? "Mock" : "PYQ", question.paper && `${question.paper} · Q${question.question_number}`, question.subject,
+  const meta = [question.origin === "mock" ? "Mock" : "PYQ", question.paper && `${question.paper} · Q${question.question_number}`,
+    subjectsText(question.subjects, question.subject),
     TYPE_LABELS[question.question_type], `${question.marks.positive} mark${question.marks.positive === 1 ? "" : "s"}`].filter(Boolean);
   return el("div", { class: "qpreview" },
     el("p", { class: "muted small", text: meta.join(" · ") + (question.topics && question.topics.length ? ` · Topics: ${question.topics.join(", ")}` : "") }),
@@ -308,7 +312,7 @@ async function listView(body, app, params, base) {
           el("a", { href: hash("run", { id: item.id }) }, el("strong", { text: `${item.paper} · Q${item.question_number}` })),
           el("span", { class: `chip ${item.bank === "MOCK" ? "chip-mock" : ""}`, text: item.bank }),
           el("span", { class: "chip", text: TYPE_LABELS[item.question_type] || item.question_type }),
-          el("span", { class: "muted", text: [item.subject, item.topics.join(", ")].filter(Boolean).join(" · ") }),
+          el("span", { class: "muted", text: [subjectsText(item.subjects, item.subject), item.topics.join(", ")].filter(Boolean).join(" · ") }),
           el("span", { class: "row-tools" }, viewButton,
             el("a", { class: "btn btn-ghost btn-small", href: hash("add/form", { id: item.id }) }, "Edit"),
             el("button", { class: "btn btn-ghost btn-small", type: "button", onclick: () => removal(rowPanel, { ids: [item.id] }, "this question", app, refresh) }, "Remove"))),

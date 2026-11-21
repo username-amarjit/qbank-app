@@ -693,7 +693,8 @@ export async function renderRun(view, { params, app }) {
 
     card.replaceChildren(
       el("div", { class: "qmeta" },
-        el("span", {}, yearTag, ` · Q${question.question_number}`, question.subject ? ` · ${question.subject}` : ""),
+        el("span", {}, yearTag, ` · Q${question.question_number}`, question.subject
+          ? ` · ${(((question.authored || {}).subjects || []).length ? question.authored.subjects : [question.subject]).join(" + ")}` : ""),
         eye,
         question.origin === "mock" ? el("span", { class: "chip chip-mock", text: "Mock" }) : null,
         el("span", { class: "chip", title: TYPE_NAMES[question.question_type] || "", text: TYPE_LABELS[question.question_type] || question.question_type }),
