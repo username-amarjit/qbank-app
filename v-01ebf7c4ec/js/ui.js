@@ -359,6 +359,9 @@ function loadImage(url, image) {
   });
 }
 
+// A fraction such as 5/6 or -3/4: an answer key may be one, and in practice it may be typed as a NAT answer (CP40I)
+export const FRACTION = /^[+-]?\s*\d+(\.\d+)?\s*\/\s*\d+(\.\d+)?$/;
+
 export function answerText(question, answer) {
   answer = answer || question.answer || {};
   if (answer.status !== "known") {
@@ -366,10 +369,9 @@ export function answerText(question, answer) {
   }
   if (question.question_type === "numerical") {
     const range = answer.numeric_range;
-    if (range && range[0] !== range[1]) {
-      return `${range[0]} to ${range[1]}`;
-    }
-    return String(range ? range[0] : answer.numeric_value !== null ? answer.numeric_value : answer.raw);
+    const accepted = range && range[0] !== range[1] ? `${range[0]} to ${range[1]}`
+      : String(range ? range[0] : answer.numeric_value !== null ? answer.numeric_value : answer.raw);
+    return FRACTION.test(String(answer.raw || "").trim()) ? `${answer.raw} (${accepted})` : accepted;
   }
   return (answer.correct_labels || []).join(", ") || answer.raw || "–";
 }
@@ -380,6 +382,16 @@ export function emptyState(text, action) {
 
 export function loading(text) {
   return el("div", { class: "loading", role: "status" }, el("span", { class: "spinner", "aria-hidden": "true" }), text || "Loading…");
+}
+
+// Saves a file the worker sent (the sample upload file, an export) under its name
+export function saveFile(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const anchor = el("a", { href: url, download: name, hidden: true });
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
 export function tabs(items, current) {

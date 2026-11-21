@@ -134,18 +134,30 @@ export const api = {
   saveResponses: (id, responses) => call("PUT", `/api/tests/${encodeURIComponent(id)}/responses`, { responses }),
   submitTest: (id, responses) => call("POST", `/api/tests/${encodeURIComponent(id)}/submit`, { responses }).then((data) => data.test),
   deleteTest: (id) => call("DELETE", `/api/tests/${encodeURIComponent(id)}`),
-  // A file from the worker (the sample upload file), as a blob and its name
-  download: async (path) => {
+  // Export (CP40H): {exam, origins, by: subjects|topics|all, subjects?, topics?}; how many first, then the file
+  exportCount: (body) => call("POST", "/api/export", { ...body, count_only: true }),
+  // A file from the worker (the sample upload file, an export), as a blob and its name; with a body it is a POST
+  download: async (path, body, fallbackName) => {
+    const init = servedByWorker ? { cache: "no-store" } : { mode: "cors", credentials: "omit", cache: "no-store", targetAddressSpace: "loopback" };
+    if (body !== undefined) {
+      Object.assign(init, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    }
     let response;
     try {
-      response = await fetch(WORKER + path, servedByWorker ? { cache: "no-store" } : { mode: "cors", credentials: "omit", cache: "no-store", targetAddressSpace: "loopback" });
+      response = await fetch(WORKER + path, init);
     } catch (error) {
       throw new WorkerUnreachable(`The QBank worker did not answer at ${WORKER}.`);
     }
     if (!response.ok) {
-      throw new WorkerError(response.status, "download", `The worker answered ${response.status}.`);
+      let problem = null;
+      try {
+        problem = (await response.json()).error;
+      } catch (error) {
+        problem = null;
+      }
+      throw new WorkerError(response.status, (problem && problem.code) || "download", (problem && problem.message) || `The worker answered ${response.status}.`);
     }
-    const name = ((response.headers.get("Content-Disposition") || "").match(/filename="([^"]+)"/) || [])[1] || "download";
+    const name = ((response.headers.get("Content-Disposition") || "").match(/filename="([^"]+)"/) || [])[1] || fallbackName || "download";
     return { blob: await response.blob(), name };
   },
   assetUrl: (exam, asset) => `${WORKER}/assets/${encodeURIComponent(exam)}/${asset.path}`,

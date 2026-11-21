@@ -3,14 +3,16 @@
 // Mock questions need options, the answer, a solution and the reasoning; PYQs need the answer and the year.
 // A topic name the topic list does not have becomes a new topic of the question's subject (CP40E), shown before adding.
 // A question may be in several subjects, the first being its main one, and give the group of its topics; a group a
-// subject does not have yet is created, or replaced by another, as chosen when checking (CP40G).
+// subject does not have yet is created, or replaced by another, as chosen when checking (CP40G). Export is in export.js
+// (CP40H).
 import { api } from "../api.js";
 import {
-  append, el, errorBanner, examLabel, hash, loading, replace, tabs,
+  append, el, errorBanner, examLabel, hash, loading, replace, saveFile, tabs,
 } from "../ui.js";
+import { exportView } from "./export.js";
 import { historyView, mineView, questionPreview } from "./mine.js";
 
-const SECTIONS = [["", "Upload a file"], ["form", "Type a question"], ["mine", "My questions"], ["history", "History"]];
+const SECTIONS = [["", "Upload a file"], ["form", "Type a question"], ["mine", "My questions"], ["history", "History"], ["export", "Export"]];
 const MAX_FILE = 6 * 1024 * 1024;
 const BANKS = [["MOCK", "Mock questions"], ["PYQ", "Previous year questions (PYQ)"]];
 let format = null; // the columns and each exam's subjects, from the worker; loaded once
@@ -18,15 +20,6 @@ let format = null; // the columns and each exam's subjects, from the worker; loa
 async function loadFormat() {
   format = format || await api.authoredFormat();
   return format;
-}
-
-function save(blob, name) {
-  const url = URL.createObjectURL(blob);
-  const anchor = el("a", { href: url, download: name, hidden: true });
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
 function examOptions(app, current) {
@@ -135,6 +128,8 @@ function columnsTable(columns) {
       el("li", {}, el("code", { text: "$x^2$" }), " inline maths (LaTeX); ", el("code", { text: "$$\\frac{a}{b}$$" }), " maths on its own line"),
       el("li", {}, el("code", { text: "```" }), " on the lines before and after a block of code; ", el("code", { text: "**bold**" })),
       el("li", { text: "A new line in a cell (Alt+Enter in Excel) is kept. Write \\$ for a dollar sign that is not maths." }),
+      el("li", {}, "In a JSON file write two backslashes before a LaTeX command, ", el("code", { text: "\\\\ne" }), ", ",
+        el("code", { text: "\\\\frac" }), ": there ", el("code", { text: "\\n" }), " alone is a new line. Check puts back what it can and says so."),
       el("li", { text: "Images cannot be uploaded: describe a figure in words, maths or a code block." })));
 }
 
@@ -149,7 +144,7 @@ function uploadView(view, app) {
         status.textContent = "Downloading…";
         try {
           const file = await api.download(`/api/authored/sample.${kind}`);
-          save(file.blob, file.name);
+          saveFile(file.blob, file.name);
           status.textContent = `Saved ${file.name}: seven sample questions (six mock, one PYQ, one of them in two subjects) to copy from.`;
         } catch (error) {
           status.textContent = error.message;
@@ -415,7 +410,7 @@ async function formView(view, app, params) {
     groupHint,
     area("question", "Question", 5),
     optionsBox,
-    text("answer", "Answer", { placeholder: "MCQ: B · MSQ: A, C · NAT: 42 or 2.45 to 2.55" }),
+    text("answer", "Answer", { placeholder: "MCQ: B · MSQ: A, C · NAT: 42, 2.45 to 2.55 or 5/6" }),
     area("solution", "Solution (required for mock)", 5),
     area("reasoning", "Reasoning: the idea behind the solution (required for mock)", 3),
     el("p", { class: "muted small", text: "Maths in $...$ or $$...$$, code between ``` lines, **bold**. No images." }),
@@ -523,6 +518,8 @@ export async function renderAdd(view, { args, params, app }) {
     await mineView(body, app, params);
   } else if (section === "history") {
     await historyView(body, app, params);
+  } else if (section === "export") {
+    await exportView(body, app, params);
   } else {
     uploadView(body, app);
   }

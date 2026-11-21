@@ -1,7 +1,7 @@
 // Taking a test (CP40D), GATE style: answers hidden until you submit, a countdown that submits at zero, mark for review,
 // a palette of question states; then the result with marks per subject and every question's solution and reasoning.
 import { api } from "../api.js";
-import { ANSWER_KEY, append, blocks, clock, el, emptyState, errorBanner, focusAnswer, hash, loading, percent, replace, TYPE_LABELS } from "../ui.js";
+import { ANSWER_KEY, append, blocks, clock, el, emptyState, errorBanner, focusAnswer, FRACTION, hash, loading, percent, replace, TYPE_LABELS } from "../ui.js";
 import { reviewItem } from "./review.js";
 import { testTitle } from "./tests.js";
 
@@ -176,12 +176,24 @@ function runner(view, test, app, onSubmitted) {
     const chosen = new Set(Array.isArray(response.selected) ? response.selected : []);
     let input = null;
     let options = null;
+    let hint = null;
     if (numerical) {
       input = el("input", { type: "text", inputmode: "decimal", class: "num-input", autocomplete: "off", "aria-label": "Your answer",
         value: response.selected === null || response.selected === undefined ? "" : String(response.selected) });
+      // numbers only, as in GATE (a fraction is for practice, CP40I): say so at once, as anything else counts as not answered
+      hint = el("p", { class: "form-error", role: "status" });
+      const checkNumber = () => {
+        const value = input.value.trim().replace(",", ".");
+        const [top, bottom] = value.split("/").map(Number);
+        const example = FRACTION.test(value) && bottom ? ` (${value.replace(/\s+/g, "")} ≈ ${Number((top / bottom).toFixed(4))})` : "";
+        hint.textContent = value === "" || Number.isFinite(Number(value)) ? ""
+          : `Not a number: type it as a decimal, as in GATE${example}. As it is, it counts as not answered.`;
+      };
+      checkNumber();
       input.addEventListener("input", () => {
         const value = input.value.trim().replace(",", ".");
         response.selected = value === "" ? null : value;
+        checkNumber();
         changed(id);
       });
       input.addEventListener("keydown", (event) => {
@@ -252,7 +264,7 @@ function runner(view, test, app, onSubmitted) {
         el("span", { class: "chip", text: TYPE_LABELS[question.question_type] || question.question_type, title: kind }),
         el("span", { class: "muted", text: marksLine(question) })),
       el("div", { class: "stem" }, blocks(question, question.content.blocks)),
-      numerical ? el("div", { class: "numeric" }, el("label", { class: "field" }, el("span", { text: "Your answer (a number)" }), input)) : options,
+      numerical ? el("div", { class: "numeric" }, el("label", { class: "field" }, el("span", { text: "Your answer (a number)" }), input), hint) : options,
       el("div", { class: "test-buttons" },
         el("button", { class: "btn", type: "button", disabled: index === 0, onclick: () => go(index - 1) }, "← Previous"),
         el("button", { class: "btn btn-ghost", type: "button", onclick: () => {
@@ -260,6 +272,7 @@ function runner(view, test, app, onSubmitted) {
           chosen.clear();
           if (input) {
             input.value = "";
+            hint.textContent = "";
           }
           card.querySelectorAll(".option").forEach((node) => { node.classList.remove("selected"); node.setAttribute("aria-checked", "false"); });
           changed(id);

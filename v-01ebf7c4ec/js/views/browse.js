@@ -1,6 +1,7 @@
 // Exam browser (CP40B): one exam's questions topic wise, subject wise or year wise, like the source site's exam menu.
 // Topic wise uses the fine topics of each question (taxonomy/<exam>.json), with your own corrections included, and the
-// topics you added yourself (CP40E), which you can rename or delete here.
+// topics you added yourself (CP40E), which you can rename or delete here. Export opens Add questions > Export with the
+// subject ticked (CP40H).
 import { api } from "../api.js";
 import {
   BROWSE_VIEWS, browseHref, el, emptyState, errorBanner, examLabel, hash, loading, papersByYear, practiceHref, replace, tabs,
@@ -149,6 +150,8 @@ async function topicsView(view, exam, params, app) {
           el("h2", { text: subject.subject }),
           el("div", { class: "card-tools" },
             subject.questions ? el("a", { class: "small", href: run(exam.exam, { subject: subject.subject }, "topics") }, `All ${subject.questions} questions of the subject`) : null,
+            subject.questions ? el("a", { class: "small", href: hash("add/export", { exam: exam.exam, subject: subject.subject }),
+              title: `Download the questions of ${subject.subject} as a JSON file, or choose some of its topics` }, "Export") : null,
             addButton)),
         [...groups.entries()].map(([group, topics]) => el("div", { class: "topic-group" },
           // built-in topics always have a group; yours may not, and without a heading they would seem part of the group above
@@ -217,7 +220,8 @@ function subjectsView(view, exam) {
       el("td", { class: "num", text: String(count) }),
       el("td", { class: "row-links" },
         el("a", { href: browseHref(exam.exam, "topics", { subject }) }, "Topics"),
-        el("a", { href: run(exam.exam, { subject, random: 10 }, "subjects") }, "10 random")))))))));
+        el("a", { href: run(exam.exam, { subject, random: 10 }, "subjects") }, "10 random"),
+        el("a", { href: hash("add/export", { exam: exam.exam, subject }), title: `Download the questions of ${subject} as a JSON file` }, "Export")))))))));
 }
 
 function yearsView(view, exam) {

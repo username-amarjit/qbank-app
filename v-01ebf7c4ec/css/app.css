@@ -402,6 +402,9 @@ table.data tbody th { font-weight: 500; }
 .group-choice input { width: 1.05rem; height: 1.05rem; margin: 0; accent-color: var(--accent); }
 .group-choice select { min-height: 2rem; padding: 0.2rem 0.5rem; }
 
+/* Export (CP40H) */
+.export-options > p { margin: 0 0 0.6rem; max-width: 80ch; }
+
 /* Error notebook (CP40A) */
 .reason-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.35rem 0; }
 .reason-chip { font-size: 0.78rem; font-weight: 600; padding: 0.05rem 0.55rem; border-radius: 999px; background: var(--warn-soft); color: var(--text); border: 1px solid var(--warn); }

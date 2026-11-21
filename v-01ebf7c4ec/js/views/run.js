@@ -3,7 +3,7 @@
 import { api } from "../api.js";
 import {
   ANSWER_KEY, answerText, blocks, BROWSE_VIEWS, browseHref, clock, el, emptyState, errorBanner, examLabel, examName, external, eyeIcon, focusAnswer,
-  hash, incognito, loading, marksText, paperLabel, percent, practiceHref, replace, TYPE_LABELS, TYPE_NAMES, when,
+  FRACTION, hash, incognito, loading, marksText, paperLabel, percent, practiceHref, replace, TYPE_LABELS, TYPE_NAMES, when,
 } from "../ui.js";
 import { entryText, mistakeForm } from "./notebook.js";
 import { reviewItem } from "./review.js";
@@ -404,7 +404,7 @@ export async function renderRun(view, { params, app }) {
       : null;
     const optionNodes = new Map();
     const optionsBox = numerical
-      ? el("div", { class: "numeric" }, el("label", { class: "field" }, el("span", { text: "Your answer (a number)" }), numberInput))
+      ? el("div", { class: "numeric" }, el("label", { class: "field" }, el("span", { text: "Your answer (a number or a fraction)" }), numberInput))
       : el("div", { class: "options", role: single ? "radiogroup" : "group", "aria-label": single ? "Choose one option" : "Choose one or more options" },
         question.options.map((option) => {
           const node = el("div", { class: "option", role: single ? "radio" : "checkbox", tabindex: "0", dataset: { label: option.label } },
@@ -508,9 +508,12 @@ export async function renderRun(view, { params, app }) {
       }
       let selected;
       if (numerical) {
-        selected = Number(numberInput.value.trim().replace(",", "."));
-        if (numberInput.value.trim() === "" || !Number.isFinite(selected)) {
-          message.textContent = "Enter a number, for example 2.5 or -3.";
+        const typed = numberInput.value.trim().replace(",", ".");
+        // a fraction (5/6) goes to the worker as written, which grades it exactly (CP40I)
+        const fraction = FRACTION.test(typed) && Number(typed.split("/")[1]) !== 0;
+        selected = fraction ? typed.replace(/\s+/g, "") : Number(typed);
+        if (typed === "" || (!fraction && !Number.isFinite(selected))) {
+          message.textContent = "Enter a number or a fraction, for example 2.5, -3 or 5/6.";
           return;
         }
       } else {
